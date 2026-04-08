@@ -81,4 +81,6 @@ For each issue, reference the specific file and line range, explain the problem,
 
 # Persistent Agent Memory
 
-Follow the memory conventions in CLAUDE.md. Your memory directory is `.claude/agent-memory/spec-code-reviewer/`.
+## Memory
+
+Follow the agent memory conventions in CLAUDE.md. Your memory directory is `.claude/agent-memory/spec-code-reviewer/`.
