@@ -98,9 +98,10 @@ The core lookup experience is stateless — no account is needed to search. A pl
   - Acceptance criteria: Detail page loads with all listed information.
   - Priority: must-have
 
-- **FR-051**: The detail page shall display photos from the data provider, if licensing terms permit.
-  - Acceptance criteria: Photos are displayed with any required attribution. If licensing does not permit photo use, photos are omitted entirely and the user relies on the Google Maps outbound link.
-  - Priority: should-have (contingent on licensing research)
+- **FR-051**: The detail page shall not display photos in the initial release. OSM does not host photos, and Google Places photos require adopting Google Maps as the map provider (see Appendix A). Users can view photos by clicking through to Google Maps via the outbound navigation link.
+  - Acceptance criteria: No photos are shown; the Google Maps link serves as the path to view photos.
+  - Priority: out of scope for Phase 1
+  - Note: If photos become a priority in the future, switching to Google Places + Google Maps as the data/map provider is a potential path, at the cost of vendor lock-in and a more complex licensing model. Self-hosted user-uploaded photos have been ruled out as too heavy a lift for this project.
 
 ### 4.7 Distance and Travel Time
 
@@ -108,9 +109,9 @@ The core lookup experience is stateless — no account is needed to search. A pl
   - Acceptance criteria: Distance is shown in miles for each park in both the list and detail views.
   - Priority: must-have
 
-- **FR-061**: The app shall display estimated travel time (driving) from the search origin for each result, if a suitable routing API is available within budget.
-  - Acceptance criteria: Travel time is shown alongside distance. If no routing API is feasible, this field is omitted gracefully.
-  - Priority: should-have (contingent on routing API research)
+- **FR-061**: The app shall display estimated travel time (driving) from the search origin for each result, using a distance matrix API to calculate times for all results in a single request.
+  - Acceptance criteria: Travel time is shown alongside distance in both the list and detail views.
+  - Priority: should-have
 
 ### 4.8 Local Storage / State Persistence
 
@@ -151,31 +152,34 @@ The core lookup experience is stateless — no account is needed to search. A pl
 - **C-001**: Geographic scope is the United States.
 - **C-002**: Budget for hosting and third-party APIs is effectively zero for the initial release (free tiers only). A custom domain (~$23/year) is acceptable.
 - **C-003**: The developer is experienced in backend programming but new to frontend/web development. Technology choices should account for learning curve.
-- **C-004**: Photo display is contingent on data provider licensing. If licensing is not permissive, photos must be omitted (users click through to Google Maps instead).
-- **C-005**: Travel time display is contingent on routing API availability within budget. Straight-line distance is the fallback.
+- **C-004**: Photos are not available from OpenStreetMap. Google Places photos require using Google Maps as the map provider and accepting its licensing terms. Photos are deferred; users click through to Google Maps to view photos.
+- **C-005**: Travel time display depends on the routing API remaining available and free. Straight-line distance is the fallback if the routing API becomes unavailable.
+- **C-006**: The OpenStreetMap ecosystem (Overpass API, Nominatim, OpenRouteService) is chosen for its zero-cost, permissive licensing. Switching to Google Maps Platform in the future is possible but would require adopting Google Maps as the map provider and accepting its terms (including the requirement that Google data only be displayed on Google Maps).
 
 ## 7. Assumptions
 
-- A suitable free or low-cost data source (OpenStreetMap, Google Places, or similar) exists that covers US parks and playgrounds with amenity tags.
+- OpenStreetMap has adequate coverage of US parks and playgrounds with amenity tags (confirmed via research — tags include `leisure=park`, `leisure=playground`, `amenity=toilets`, `highway=path` + `sac_scale=hiking`, etc.). Coverage varies by region; urban/suburban areas are generally well-mapped.
+- The Overpass API, Nominatim, and OpenRouteService hosted instances will remain available and free for personal-scale usage.
 - Browser geolocation is sufficiently accurate on mobile devices for the "use current location" feature.
 - Google Maps outbound links (for navigation) do not require an API key or incur costs.
 - The developer will be the primary person building, deploying, and maintaining the app.
 
 ## 8. Open Questions
 
-- **OQ-001**: Which data source(s) should be used (OpenStreetMap, Google Places, other)? What are the licensing terms, data quality, and amenity tag coverage for each? *(Recommended: sub-agent research)*
-- **OQ-002**: Which routing API (OSRM, Mapbox, Google Directions, other) is best suited for travel time estimates within the free/cheap budget constraint? *(Recommended: sub-agent research)*
-- **OQ-003**: Do the candidate data providers allow displaying photos in a third-party app? What attribution is required? *(Research alongside OQ-001)*
-- **OQ-004**: What map tile provider and mapping library should be used for the interactive map? *(To be determined during solution design)*
+- ~~**OQ-001**: Which data source(s) should be used?~~ **Resolved.** OpenStreetMap via Overpass API. Google Places is a potential future fallback if photos become a priority, at the cost of vendor lock-in. See Appendix A.
+- ~~**OQ-002**: Which routing API?~~ **Resolved.** OpenRouteService (hosted) for the initial release. OSRM (self-hosted) is a fallback if ORS becomes unavailable or usage outgrows it. See Appendix A.
+- ~~**OQ-003**: Photo licensing?~~ **Resolved.** OSM has no photos. Google Places photos require Google Maps as the map provider. Photos are deferred; users click through to Google Maps. See Appendix A.
+- ~~**OQ-004**: Map tile provider and library?~~ **Resolved.** Leaflet + OpenStreetMap tiles is the natural pairing with the chosen OSM data stack. Final confirmation during solution design.
 - **OQ-005**: What authentication method(s) should Phase 2 use (OAuth providers, email/password, magic links)? *(To be determined during Phase 2 planning)*
-- **OQ-006**: What does the full set of useful amenity tags look like once sample data from the chosen provider(s) is available? *(To be explored after data source is selected)*
+- **OQ-006**: What does the full set of useful amenity tags look like once sample data from OpenStreetMap is available? *(To be explored during implementation — query Overpass for a sample area and review tags)*
 
 ## 9. Out of Scope
 
 - Native mobile apps (iOS/Android).
 - Offline or PWA functionality.
 - Address autocomplete (may revisit later).
-- User-uploaded photos or user-generated content beyond personal notes.
+- User-uploaded photos or self-hosted photo storage (ruled out as too heavy a lift).
+- User-generated content beyond personal notes.
 - Contributing edits back to upstream data providers (e.g., editing OpenStreetMap).
 - Ratings or reviews of parks.
 - Sharing lists of visited/favorited parks between users.
@@ -191,3 +195,65 @@ The core lookup experience is stateless — no account is needed to search. A pl
 - **Phase 2**: A planned future development phase that adds user accounts and personal data features (visited status, notes, favorites). Not required for initial launch.
 - **Straight-line distance**: The geographic distance "as the crow flies" between two points, as opposed to driving distance along roads.
 - **Travel time**: Estimated driving time from the search origin to a park, calculated via a routing API.
+- **Overpass API**: A query API for OpenStreetMap data that supports spatial searches (e.g., "all playgrounds within 8 km of this point").
+- **Nominatim**: A geocoding service for OpenStreetMap — converts addresses to coordinates and vice versa.
+- **OpenRouteService (ORS)**: A free hosted routing API built on OpenStreetMap data, providing distance matrix calculations.
+- **OSRM**: Open Source Routing Machine — a self-hostable routing engine built on OpenStreetMap data.
+- **Leaflet**: An open-source JavaScript library for interactive maps.
+- **Distance matrix**: A single API request that calculates travel time from one origin to multiple destinations simultaneously.
+
+## Appendix A: Data Source and API Research
+
+Research conducted to resolve OQ-001 through OQ-004. Findings informed the technology constraints in Section 6.
+
+### Data Sources
+
+**OpenStreetMap (via Overpass API) — Selected**
+- Good US coverage for parks (`leisure=park`) and playgrounds (`leisure=playground`). Urban/suburban areas are well-mapped; rural areas vary.
+- Rich amenity tags: `amenity=toilets`, `amenity=drinking_water`, `sport=basketball`, `highway=path` + `sac_scale=hiking`, `leisure=dog_park`, `leisure=picnic_table`, and even equipment-level detail (`playground=swing`, `playground=slide`) though granularity is inconsistent.
+- Open Database License (ODbL). Free for any use. Requires attribution: "© OpenStreetMap contributors."
+- Overpass API is free with no API key. Fair-use rate limits (no hard quota). Supports spatial queries natively (`around:radius,lat,lon`).
+- Geocoding via Nominatim: free, rate-limited to 1 req/sec on the public instance. Sufficient for personal scale.
+- **Does not host photos.** Some features link to Wikimedia Commons via tags, but coverage is sparse.
+
+**Google Places API — Potential future fallback**
+- Excellent US coverage, more consistent nationwide than OSM. Supports `park` and `playground` types.
+- Less granular amenity data than OSM (flat type list, no equipment-level tags).
+- **Licensing dealbreaker for primary use**: data must be displayed on a Google Map. Cannot combine with Leaflet + OSM tiles.
+- Photos are available but only displayable alongside a Google Map with attribution.
+- $200/month free credit covers ~5,000-6,000 nearby searches — sufficient for personal scale.
+- Remains a viable option if photos become a priority and the project is willing to adopt Google Maps as the map provider.
+
+**Other sources considered and rejected**: US government databases (good for federal/state parks, poor for local playgrounds, no unified API), Yelp/Foursquare (business-oriented, poor amenity tagging), Mapbox (uses OSM data underneath, adds cost without benefit).
+
+### Routing APIs
+
+**OpenRouteService (hosted) — Selected**
+- Free, no API key cost. 2,500 matrix requests/day (far exceeds personal-scale needs).
+- Matrix endpoint supports up to 50×50 per request — one request covers all ~20 results.
+- Uses OSM data. Good accuracy. No real-time traffic, but sufficient for rough driving estimates.
+- No map display restrictions — works freely with Leaflet + OSM tiles.
+- Simple REST API, straightforward JSON responses.
+
+**OSRM (self-hosted) — Fallback**
+- Zero per-request cost. US data extract (~1.2 GB) requires ~4-8 GB RAM. Runs on a $5-6/mo VPS via Docker.
+- Matrix endpoint (`/table/v1/driving/`) supports 1-to-many natively.
+- Good accuracy (OSM data, no traffic). No usage restrictions.
+- More setup effort than ORS. Best as a "graduate to" option for independence from external services.
+- Note: the public OSRM demo server explicitly prohibits production use.
+
+**Mapbox Directions/Matrix — Not selected**
+- Generous free tier (100K matrix requests/month) but **requires displaying results on a Mapbox map**. Vendor lock-in conflicts with the Leaflet + OSM tiles approach.
+
+**Google Distance Matrix — Not selected**
+- Best accuracy (real-time traffic) but **requires displaying results on a Google Map**, requires a billing account, and has the lowest effective free tier (~2,000 searches/month). Overkill for this use case.
+
+### Selected Stack Summary
+
+| Layer | Selected | Fallback |
+|-------|----------|----------|
+| Park/playground data | OpenStreetMap via Overpass API | Google Places (if photos become priority) |
+| Geocoding | Nominatim | Google Geocoding (if switching to Google stack) |
+| Routing / travel time | OpenRouteService (hosted) | OSRM (self-hosted, ~$5-6/mo VPS) |
+| Map tiles + UI | Leaflet + OpenStreetMap tiles | Google Maps (if switching to Google stack) |
+| Photos | None (link out to Google Maps) | Google Places photos (requires Google Maps) |
