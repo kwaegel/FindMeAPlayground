@@ -38,15 +38,18 @@
   $: filtered = getFilteredResults(state);
   $: visible = filtered.slice(0, state.visibleCount);
   $: hasMore = filtered.length > state.visibleCount;
+  // Only show the empty-state message when a search has actually been run
+  // (origin is set). Before the first search, no message should appear.
+  $: showEmptyState = visible.length === 0 && !!state.origin && !state.loading;
 </script>
 
 <div class="results-list">
-  {#if visible.length === 0}
+  {#if showEmptyState}
     <p class="empty-message">No parks found. Try a different location or radius.</p>
-  {:else}
+  {:else if visible.length > 0}
     <ul class="park-list">
       {#each visible as park (park.id)}
-        {@const travelSecs = state.travelTimes?.get(park.id)}
+        {@const travelSecs = state.travelTimes.get(park.id)}
         <!-- Using a button for the interactive list item gives correct a11y
              semantics. The inner directions link stops propagation to avoid
              double-firing the selectPark action. -->

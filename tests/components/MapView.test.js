@@ -140,6 +140,40 @@ describe('MapView', () => {
     );
   });
 
+  it('removes stale markers before placing new ones when results change', async () => {
+    // Track marker instances so we can assert .remove() was called on the old ones.
+    const createdMarkers = [];
+    L.marker.mockImplementation(() => {
+      const m = {
+        addTo: vi.fn().mockReturnThis(),
+        bindPopup: vi.fn().mockReturnThis(),
+        on: vi.fn().mockReturnThis(),
+        remove: vi.fn(),
+      };
+      createdMarkers.push(m);
+      return m;
+    });
+
+    render(MapView);
+    // Wait for the initial markers to be placed.
+    await waitFor(() => expect(L.marker.mock.calls.length).toBeGreaterThanOrEqual(PARKS.length));
+    const firstBatch = [...createdMarkers];
+
+    // Push new results — different park IDs means a different result set.
+    const newParks = [
+      { id: 'way/99', name: 'New Park', lat: 40.71, lon: -74.01, amenities: [], distanceMiles: 0.3, travelTimeSeconds: null, osmTags: {} },
+    ];
+    mockState = { ...mockState, allResults: newParks };
+    storeSub(mockState);
+
+    // After the update, all markers from the first batch must be removed.
+    await waitFor(() => {
+      for (const m of firstBatch) {
+        expect(m.remove).toHaveBeenCalled();
+      }
+    });
+  });
+
   it('clicking a marker calls selectPark with the corresponding park', async () => {
     // Capture the click handler from the FIRST marker placed.
     // Subsequent markers overwrite it, so we stop capturing after the first.
@@ -166,5 +200,67 @@ describe('MapView', () => {
     firstMarkerClickHandler();
 
     expect(selectPark).toHaveBeenCalledWith(PARKS[0]);
+  });
+
+  // --- Search-from-here (task 13) ---
+
+  it('right-click (contextmenu) on the map calls setOrigin with "Map location"', async () => {
+    render(MapView);
+    await waitFor(() => expect(L.map).toHaveBeenCalled());
+
+    // Capture the contextmenu handler registered with the Leaflet map mock.
+    const contextMenuCall = mockMap.on.mock.calls.find(([event]) => event === 'contextmenu');
+    expect(contextMenuCall).toBeDefined();
+    const contextMenuHandler = contextMenuCall[1];
+
+    // Simulate a right-click at specific coordinates.
+    contextMenuHandler({ latlng: { lat: 40.71, lng: -74.01 } });
+
+    const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
+    expect(setOriginMock).toHaveBeenCalledWith(40.71, -74.01, 'Map location');
+  });
+
+  it('long-press (touchstart held 500ms) on the map calls setOrigin with "Map location"', async () => {
+    vi.useFakeTimers();
+
+    render(MapView);
+    await waitFor(() => expect(L.map).toHaveBeenCalled());
+
+    const touchStartCall = mockMap.on.mock.calls.find(([event]) => event === 'touchstart');
+    expect(touchStartCall).toBeDefined();
+    const touchStartHandler = touchStartCall[1];
+
+    // Start the press — the 500ms timer should not have fired yet.
+    touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
+
+    const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
+    expect(setOriginMock).not.toHaveBeenCalled();
+
+    // Advance past the long-press threshold.
+    vi.advanceTimersByTime(510);
+    expect(setOriginMock).toHaveBeenCalledWith(38.9, -77.04, 'Map location');
+
+    vi.useRealTimers();
+  });
+
+  it('cancels long-press if finger lifts before 500ms', async () => {
+    vi.useFakeTimers();
+
+    render(MapView);
+    await waitFor(() => expect(L.map).toHaveBeenCalled());
+
+    const touchStartCall = mockMap.on.mock.calls.find(([event]) => event === 'touchstart');
+    const touchEndCall = mockMap.on.mock.calls.find(([event]) => event === 'touchend');
+    const touchStartHandler = touchStartCall[1];
+    const touchEndHandler = touchEndCall[1];
+
+    touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
+    touchEndHandler(); // finger lifts before 500ms
+    vi.advanceTimersByTime(600);
+
+    const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
+    expect(setOriginMock).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 });

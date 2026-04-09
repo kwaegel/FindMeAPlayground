@@ -168,6 +168,46 @@ describe('searchParks()', () => {
     );
   });
 
+  it('includes "out center" in the Overpass QL query body', async () => {
+    // "out center" is required for way/relation elements to include centroid
+    // coordinates. Without it, way elements have no lat/lon and appear at (0,0).
+    // The body is URL-encoded (application/x-www-form-urlencoded), so decode it.
+    const fetchSpy = mockFetch(MOCK_RESPONSE);
+    await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+
+    const rawBody = fetchSpy.mock.calls[0][1].body;
+    const decoded = decodeURIComponent(rawBody);
+    expect(decoded).toContain('out center');
+  });
+
+  it('includes the radius in the Overpass QL query body', async () => {
+    const fetchSpy = mockFetch(MOCK_RESPONSE);
+    await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+
+    const rawBody = fetchSpy.mock.calls[0][1].body;
+    const decoded = decodeURIComponent(rawBody);
+    expect(decoded).toContain(String(RADIUS_M));
+  });
+
+  it('uses centroid coordinates for relation elements', async () => {
+    const responseWithRelation = {
+      elements: [
+        {
+          type: 'relation',
+          id: 99999,
+          center: { lat: 38.91, lon: -77.05 },
+          tags: { name: 'Regional Park', leisure: 'park' },
+        },
+      ],
+    };
+    mockFetch(responseWithRelation);
+    const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+    expect(results.length).toBe(1);
+    expect(results[0].lat).toBe(38.91);
+    expect(results[0].lon).toBe(-77.05);
+    expect(results[0].id).toBe('relation/99999');
+  });
+
   it('throws "Search failed, please try again." on HTTP error', async () => {
     mockFetch({}, 429);
     await expect(searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M)).rejects.toThrow(

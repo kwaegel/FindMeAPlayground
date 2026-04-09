@@ -10,19 +10,49 @@
   import ResultsList from './components/ResultsList.svelte';
   import MapView from './components/MapView.svelte';
   import ParkDetailModal from './components/ParkDetailModal.svelte';
-  import { searchStore } from './stores/searchStore.js';
+  import { searchStore, getFilteredResults } from './stores/searchStore.js';
   import { getTravelTimes } from './services/travelTime.js';
 
-  // Track the last allResults reference. searchParks always returns a new
-  // array, so a reference change means a new set of results has arrived.
-  // Wired here rather than in searchStore.js to avoid a circular import
-  // (travelTime.js → searchStore.js → travelTime.js).
+  // Mobile list/map toggle. On desktop this is unused — CSS handles layout.
+  // Using plain let (not $state) to stay in Svelte 4 legacy mode alongside the
+  // $: reactive blocks below. Svelte 4 reactive vars are still reactive when
+  // assigned — $state() would trigger runes mode and disallow $:.
+  let showList = false;
+
+  // Travel-time fetch orchestration. Wired here rather than in searchStore.js
+  // to avoid a circular import (travelTime.js → searchStore.js → travelTime.js).
+  //
+  // Two triggers:
+  //   1. New search results arrive (allResults reference changes) → fetch all.
+  //   2. User clicks "show more" (visibleCount increases, same results) → fetch
+  //      only the newly-visible parks so we don't over-burn ORS quota.
+  //
+  // prevVisibleCount is reset downward when visibleCount drops (e.g. after a
+  // filter change resets pagination) so the next show-more fetches from the
+  // correct offset.
   let prevResults = null;
+  let prevVisibleCount = 0;
   $: {
-    const { origin, allResults } = $searchStore;
-    if (origin && allResults.length > 0 && allResults !== prevResults) {
-      prevResults = allResults;
-      getTravelTimes(origin, allResults);
+    const { origin, allResults, visibleCount } = $searchStore;
+    if (origin && allResults.length > 0) {
+      if (allResults !== prevResults) {
+        // New search — fetch travel times for all results up front.
+        prevResults = allResults;
+        prevVisibleCount = visibleCount;
+        getTravelTimes(origin, allResults);
+      } else if (visibleCount > prevVisibleCount) {
+        // Show more — fetch only the newly-exposed slice.
+        const filtered = getFilteredResults($searchStore);
+        const newBatch = filtered.slice(prevVisibleCount, visibleCount);
+        prevVisibleCount = visibleCount;
+        if (newBatch.length > 0) {
+          getTravelTimes(origin, newBatch);
+        }
+      } else {
+        // visibleCount dropped (filter reset) — sync cursor down so the next
+        // show-more fetches from the correct offset.
+        prevVisibleCount = visibleCount;
+      }
     }
   }
 </script>
@@ -42,13 +72,25 @@
       <AmenityFilters />
     </div>
 
-    <div class="results-container">
+    <!-- Mobile-only toggle: switch between map and list views.
+         On desktop this button is hidden; the sidebar is always visible. -->
+    <div class="view-toggle">
+      <button
+        class="toggle-btn"
+        onclick={() => { showList = !showList; }}
+        type="button"
+      >
+        {showList ? 'View Map' : 'View List'}
+      </button>
+    </div>
+
+    <div class="results-container" class:show-list={showList}>
       <ResultsList />
     </div>
   </aside>
 
   <!-- Right panel: Leaflet map -->
-  <main class="map-panel">
+  <main class="map-panel" class:hide-map={showList}>
     <MapView />
   </main>
 
@@ -128,7 +170,12 @@
     flex-direction: column;
   }
 
-  /* --- Mobile layout (≤768px): stacked --- */
+  /* View toggle button — hidden on desktop, visible on mobile */
+  .view-toggle {
+    display: none;
+  }
+
+  /* --- Mobile layout (≤768px): toggle between map and list --- */
   @media (max-width: 768px) {
     .app-shell {
       flex-direction: column;
@@ -139,19 +186,50 @@
       min-width: unset;
       border-right: none;
       border-bottom: 1px solid #e5e7eb;
-      /* On mobile the sidebar doesn't scroll the results — the map is below */
       flex: none;
     }
 
+    /* Results list hidden by default on mobile; shown when showList=true */
     .results-container {
-      /* Hide results list on mobile by default; map is primary view below */
       max-height: 0;
       overflow: hidden;
     }
 
+    .results-container.show-list {
+      max-height: 60vh;
+      overflow: auto;
+    }
+
+    /* Map fills remaining space; hidden when list is shown */
     .map-panel {
       flex: 1;
       min-height: 300px;
+    }
+
+    .map-panel.hide-map {
+      display: none;
+    }
+
+    /* Show the toggle button on mobile */
+    .view-toggle {
+      display: flex;
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .toggle-btn {
+      width: 100%;
+      padding: 0.5rem;
+      background: none;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .toggle-btn:hover {
+      background: #f3f4f6;
     }
   }
 </style>

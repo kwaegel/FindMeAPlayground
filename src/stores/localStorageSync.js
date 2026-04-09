@@ -5,6 +5,13 @@
 // search if a stored origin is present.
 
 import { searchStore, setOrigin, setRadius, setFilters } from './searchStore.js';
+// Static import — no circular dep (amenities.js has no imports).
+import { AMENITIES } from '../config/amenities.js';
+
+// Allowed radius values — must match the options in RadiusDropdown.
+const VALID_RADII = [5, 10, 15];
+// Valid amenity keys derived from config so validation stays in sync automatically.
+const VALID_AMENITY_KEYS = new Set(AMENITIES.map((a) => a.key));
 
 const STORAGE_KEY = 'findmeaplayground_state';
 const DEBOUNCE_MS = 500;
@@ -56,19 +63,26 @@ function readStored() {
  *
  * Call this from main.js before mounting the app.
  */
-export function init() {
+export async function init() {
   const stored = readStored();
 
   if (stored) {
-    // Restore radius and amenity filters synchronously (no side effects).
-    if (typeof stored.radiusMiles === 'number') {
-      setRadius(stored.radiusMiles);
-    }
-    if (Array.isArray(stored.selectedAmenities)) {
-      setFilters(stored.selectedAmenities);
+    // Restore radius — await so the store is in the correct state before
+    // setOrigin fires a search. Validate against the allowed set to reject
+    // corrupted or manually-edited localStorage values.
+    if (VALID_RADII.includes(stored.radiusMiles)) {
+      await setRadius(stored.radiusMiles);
     }
 
-    // Restoring the origin triggers a full Overpass search — do this last.
+    // Restore amenity filters — filter to known keys only so stale amenity
+    // names from a previous version don't linger in the store.
+    if (Array.isArray(stored.selectedAmenities)) {
+      const sanitized = stored.selectedAmenities.filter((k) => VALID_AMENITY_KEYS.has(k));
+      setFilters(sanitized);
+    }
+
+    // Restoring the origin triggers a full Overpass search — do this last so
+    // radius and filters are already in place when the search fires.
     if (stored.origin?.lat != null && stored.origin?.lon != null) {
       setOrigin(stored.origin.lat, stored.origin.lon, stored.origin.displayName ?? '');
     }

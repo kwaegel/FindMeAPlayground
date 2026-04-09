@@ -18,6 +18,7 @@ import {
   selectPark,
   clearSelectedPark,
   mergeTravelTimes,
+  getFilteredResults,
   _resetStore,
 } from '../../src/stores/searchStore.js';
 
@@ -53,6 +54,9 @@ describe('searchStore', () => {
     expect(state.loading).toBe(false);
     expect(state.error).toBeNull();
     expect(state.selectedPark).toBeNull();
+    // travelTimes must be a Map (not {}) so .get() is safe without guards.
+    expect(state.travelTimes).toBeInstanceOf(Map);
+    expect(state.travelTimes.size).toBe(0);
   });
 
   // --- setOrigin ---
@@ -147,10 +151,11 @@ describe('searchStore', () => {
     setFilters(['playground']);
 
     expect(searchParks).not.toHaveBeenCalled();
+    // Assert via getFilteredResults — the function the UI actually uses.
     const state = get(searchStore);
-    // Only parks with 'playground' amenity should be in filteredResults
-    const filtered = state.allResults.filter((p) => p.amenities.includes('playground'));
+    const filtered = getFilteredResults(state);
     expect(filtered.length).toBe(2); // Park A and Park C
+    expect(filtered.every((p) => p.amenities.includes('playground'))).toBe(true);
   });
 
   it('setFilters with empty array shows all results', async () => {
@@ -159,20 +164,47 @@ describe('searchStore', () => {
 
     setFilters([]);
 
-    expect(get(searchStore).selectedAmenities).toEqual([]);
+    const state = get(searchStore);
+    expect(state.selectedAmenities).toEqual([]);
+    expect(getFilteredResults(state).length).toBe(PARKS.length);
   });
 
-  it('setFilters applies AND logic for multiple amenities', () => {
-    searchStore.update((s) => ({ ...s, allResults: PARKS }));
+  it('setFilters applies AND logic for multiple amenities', async () => {
+    searchParks.mockResolvedValue(PARKS);
+    await setOrigin(ORIGIN.lat, ORIGIN.lon, ORIGIN.displayName);
+
     setFilters(['playground', 'restroom']);
 
     const state = get(searchStore);
     // Only Park C has both playground AND restroom
-    const matching = state.allResults.filter(
-      (p) => ['playground', 'restroom'].every((a) => p.amenities.includes(a))
-    );
-    expect(matching.length).toBe(1);
-    expect(matching[0].name).toBe('Park C');
+    const filtered = getFilteredResults(state);
+    expect(filtered.length).toBe(1);
+    expect(filtered[0].name).toBe('Park C');
+  });
+
+  it('setFilters resets visibleCount to 20', async () => {
+    searchParks.mockResolvedValue(PARKS);
+    await setOrigin(ORIGIN.lat, ORIGIN.lon, ORIGIN.displayName);
+    incrementVisibleCount(); // bump to 40
+    expect(get(searchStore).visibleCount).toBe(40);
+
+    setFilters(['playground']);
+
+    // visibleCount must reset so the user sees from page 1 of the filtered set.
+    expect(get(searchStore).visibleCount).toBe(20);
+  });
+
+  it('setOrigin resets visibleCount to 20 on new search', async () => {
+    searchParks.mockResolvedValue(PARKS);
+    await setOrigin(ORIGIN.lat, ORIGIN.lon, ORIGIN.displayName);
+    incrementVisibleCount(); // bump to 40
+    expect(get(searchStore).visibleCount).toBe(40);
+
+    // New search must reset visibleCount so the user sees from page 1.
+    searchParks.mockResolvedValue(PARKS);
+    await setOrigin(40.71, -74.01, 'New York, NY');
+
+    expect(get(searchStore).visibleCount).toBe(20);
   });
 
   // --- visibleCount ---

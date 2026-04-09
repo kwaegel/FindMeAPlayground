@@ -6,7 +6,6 @@
   // Map state is managed imperatively via Leaflet APIs in reactive blocks:
   // when origin changes → re-center; when visible results change → re-pin.
   import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
   import { searchStore, selectPark, setOrigin, getFilteredResults } from '../stores/searchStore.js';
   // Static import so vi.mock('leaflet') can intercept it in tests.
   // The CSS import is a no-op in test environments.
@@ -86,7 +85,8 @@
     });
 
     // Long-press: start a timer on touchstart, cancel if the finger moves.
-    let longPressTimer = null;
+    // longPressTimer is declared at component scope (above onDestroy) so that
+    // onDestroy can cancel it if the component is destroyed mid-press.
     map.on('touchstart', (event) => {
       const { lat, lng } = event.latlng;
       longPressTimer = setTimeout(() => {
@@ -100,17 +100,20 @@
       if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
     });
 
-    // Use get() to read current store state synchronously inside onMount.
-    // $store syntax may not be available in the onMount closure in Svelte 5.
-    const state = get(searchStore);
-    if (state.origin) {
-      map.setView([state.origin.lat, state.origin.lon], radiusToZoom(state.radiusMiles));
-      updateCircle(state.origin, state.radiusMiles);
-    }
-    placePins(getFilteredResults(state).slice(0, state.visibleCount));
+    // Initial map view and pins are handled by the $: reactive block below,
+    // which fires once map becomes non-null after this onMount completes.
+    // Reading state via get() here would overwrite the test's subscriber
+    // reference (since get() internally calls subscribe), breaking state-update
+    // tests. The reactive block is the single source of truth for map state.
   });
 
+  // longPressTimer is module-scoped so it must be accessible in onDestroy.
+  // Declared up here to avoid a temporal dead zone if onDestroy runs before
+  // the touchstart handler has a chance to set it.
+  let longPressTimer = null;
+
   onDestroy(() => {
+    if (longPressTimer) clearTimeout(longPressTimer);
     if (map) map.remove();
   });
 

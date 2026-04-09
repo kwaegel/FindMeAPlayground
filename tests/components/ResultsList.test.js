@@ -102,12 +102,24 @@ describe('ResultsList', () => {
     expect(items[0].textContent).not.toMatch(/\d+ min/);
   });
 
-  it('renders a Google Maps directions link for each result', () => {
+  it('renders a Google Maps directions link for each result with correct coordinates', () => {
     render(ResultsList);
     const links = screen.getAllByRole('link', { name: /directions/i });
     expect(links.length).toBeGreaterThanOrEqual(3);
-    expect(links[0].href).toContain('google.com/maps');
-    expect(links[0].href).toContain('destination=');
+    // Each link must use that park's own coordinates, not a shared/first-park value.
+    PARKS.forEach((park, i) => {
+      expect(links[i].href).toContain('google.com/maps');
+      expect(links[i].href).toContain(`destination=${park.lat},${park.lon}`);
+    });
+  });
+
+  it('renders results in ascending distance order', () => {
+    render(ResultsList);
+    const items = screen.getAllByRole('listitem');
+    // The fixture is sorted 0.5 → 1.8 → 2.5 mi; verify DOM order matches.
+    expect(items[0].textContent).toContain('Oak Hill Park');
+    expect(items[1].textContent).toContain('Riverside Park');
+    expect(items[2].textContent).toContain('Unnamed Park');
   });
 
   it('clicking a result calls selectPark', async () => {
@@ -137,9 +149,22 @@ describe('ResultsList', () => {
     expect(incrementVisibleCount).toHaveBeenCalled();
   });
 
-  it('shows empty state message when no results', () => {
-    mockState = { ...mockState, allResults: [] };
+  it('shows empty state message when a search has been run but no results found', () => {
+    // origin must be set — the empty state only appears after a real search.
+    mockState = {
+      ...mockState,
+      allResults: [],
+      loading: false,
+      origin: { lat: 38.895, lon: -77.036, displayName: 'Arlington, VA' },
+    };
     render(ResultsList);
     expect(screen.getByText(/no parks found/i)).toBeInTheDocument();
+  });
+
+  it('does not show empty state message before any search is run', () => {
+    // origin is null — user has not searched yet.
+    mockState = { ...mockState, allResults: [], origin: null, loading: false };
+    render(ResultsList);
+    expect(screen.queryByText(/no parks found/i)).not.toBeInTheDocument();
   });
 });

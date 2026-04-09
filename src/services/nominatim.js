@@ -21,7 +21,10 @@ export function _resetRateLimit() {
 
 /**
  * Wait until the rate-limit cooldown has elapsed since the last request.
- * Updates `lastRequestTime` to the moment the next request is allowed.
+ * Advances `lastRequestTime` BEFORE sleeping so that concurrent callers see
+ * the slot as taken and schedule themselves further into the future (queue
+ * semantics). Without this, two simultaneous calls at t=0 both see elapsed=0
+ * and both fire at t=1000, violating the rate limit.
  *
  * @returns {Promise<void>}
  */
@@ -29,9 +32,12 @@ async function waitForRateLimit() {
   const now = Date.now();
   const elapsed = now - lastRequestTime;
   if (elapsed < RATE_LIMIT_MS) {
+    // Claim the next available slot by advancing the cursor first.
+    lastRequestTime += RATE_LIMIT_MS;
     await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS - elapsed));
+  } else {
+    lastRequestTime = now;
   }
-  lastRequestTime = Date.now();
 }
 
 /**

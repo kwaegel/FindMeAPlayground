@@ -37,7 +37,7 @@ describe('localStorageSync', () => {
 
   // --- Restore on load ---
 
-  it('restores origin from localStorage on init', () => {
+  it('restores origin from localStorage on init', async () => {
     const stored = {
       origin: { lat: 38.895, lon: -77.036, displayName: 'Arlington, VA' },
       radiusMiles: 10,
@@ -45,47 +45,47 @@ describe('localStorageSync', () => {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
 
-    init();
+    await init();
 
     expect(setOrigin).toHaveBeenCalledWith(38.895, -77.036, 'Arlington, VA');
   });
 
-  it('restores radius on init even without origin', () => {
+  it('restores radius on init even without origin', async () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ radiusMiles: 15, selectedAmenities: [] }));
 
-    init();
+    await init();
 
     expect(setRadius).toHaveBeenCalledWith(15);
   });
 
-  it('restores selectedAmenities on init', () => {
+  it('restores selectedAmenities on init', async () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({ radiusMiles: 5, selectedAmenities: ['restroom'] })
     );
 
-    init();
+    await init();
 
     expect(setFilters).toHaveBeenCalledWith(['restroom']);
   });
 
-  it('does not call setOrigin when no stored origin', () => {
+  it('does not call setOrigin when no stored origin', async () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ radiusMiles: 5, selectedAmenities: [] }));
 
-    init();
+    await init();
 
     expect(setOrigin).not.toHaveBeenCalled();
   });
 
-  it('uses defaults silently when localStorage key is absent', () => {
+  it('uses defaults silently when localStorage key is absent', async () => {
     // No localStorage entry.
-    expect(() => init()).not.toThrow();
+    await expect(init()).resolves.not.toThrow();
     expect(setOrigin).not.toHaveBeenCalled();
   });
 
-  it('uses defaults silently when localStorage contains corrupt JSON', () => {
+  it('uses defaults silently when localStorage contains corrupt JSON', async () => {
     localStorage.setItem(STORAGE_KEY, 'not-valid-json{');
-    expect(() => init()).not.toThrow();
+    await expect(init()).resolves.not.toThrow();
   });
 
   // --- Persist on change ---

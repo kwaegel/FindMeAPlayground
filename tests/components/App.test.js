@@ -34,6 +34,10 @@ vi.mock('../../src/services/nominatim.js', () => ({
   geocode: vi.fn(),
 }));
 
+vi.mock('../../src/services/travelTime.js', () => ({
+  getTravelTimes: vi.fn(),
+}));
+
 vi.mock('leaflet', () => ({
   default: {
     map: vi.fn(() => ({

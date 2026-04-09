@@ -112,7 +112,8 @@ export async function onRequestPost({ request, env }) {
     sources: [0],
     destinations: destinations.map((_, i) => i + 1),
     metrics: ['duration'],
-    units: 's',
+    // Note: the `units` field controls distance units in ORS, not duration.
+    // Duration is always returned in seconds regardless of this field.
   };
 
   let orsData;
@@ -140,11 +141,38 @@ export async function onRequestPost({ request, env }) {
 
   // ORS returns durations as a 2D array: [[t1, t2, ...]].
   // Row 0 is the single source (our origin); each column is a destination.
-  const times = orsData.durations?.[0] ?? [];
+  // Validate the shape so a contract change produces an obvious empty result
+  // rather than a silent TypeError downstream.
+  const timesRow = orsData?.durations?.[0];
+  if (!Array.isArray(timesRow)) {
+    console.warn('[travel-times] Unexpected ORS response shape:', JSON.stringify(orsData));
+  }
+  const times = Array.isArray(timesRow) ? timesRow : [];
 
   return new Response(JSON.stringify({ times }), {
     status: 200,
     headers: headers(allowedOrigin),
+  });
+}
+
+/**
+ * Top-level request handler — routes by method and returns 405 for anything
+ * other than POST and OPTIONS. Exported as `onRequest` so that unit tests can
+ * invoke method-rejection logic directly (the Pages Function router handles
+ * method dispatch in production via the named `onRequestPost` export, but that
+ * makes 405 untestable in isolation).
+ *
+ * @param {object} context - Cloudflare Pages Function execution context.
+ */
+export async function onRequest(context) {
+  const { request } = context;
+  if (request.method === 'POST') return onRequestPost(context);
+  if (request.method === 'OPTIONS') return onRequestOptions(context);
+
+  const allowedOrigin = context.env?.ALLOWED_ORIGIN ?? '*';
+  return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+    status: 405,
+    headers: headers(allowedOrigin, { Allow: 'POST, OPTIONS' }),
   });
 }
 

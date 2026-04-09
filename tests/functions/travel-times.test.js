@@ -2,7 +2,7 @@
 // The Worker is a plain ES module — we import and test it directly in jsdom.
 // ORS fetch calls are mocked.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { onRequestPost } from '../../functions/api/travel-times.js';
+import { onRequestPost, onRequestOptions, onRequest } from '../../functions/api/travel-times.js';
 
 // --- Helpers ---
 
@@ -171,16 +171,60 @@ describe('travel-times Worker: POST /api/travel-times', () => {
     // not in the Worker's response to the client.
     expect(orsCallOptions.headers['Authorization']).toBe('test-key-123');
   });
+
+  it('sends coordinates to ORS in [longitude, latitude] order (GeoJSON convention)', async () => {
+    const fetchSpy = mockOrsSuccess([300, 600]);
+    const ctx = makeContext(VALID_BODY);
+    await onRequestPost(ctx);
+
+    const orsReqBody = JSON.parse(fetchSpy.mock.calls[0][1].body);
+    // First location is the origin [lon, lat] = [-77.036, 38.895]
+    expect(orsReqBody.locations[0]).toEqual([-77.036, 38.895]);
+    // Second location is the first destination
+    expect(orsReqBody.locations[1]).toEqual(VALID_BODY.destinations[0]);
+    // metrics must include 'duration'
+    expect(orsReqBody.metrics).toContain('duration');
+  });
+
+  it('returns 400 for non-numeric coordinates in destinations', async () => {
+    const ctx = makeContext({ ...VALID_BODY, destinations: [['bad', 38.9]] });
+    const response = await onRequestPost(ctx);
+    expect(response.status).toBe(400);
+  });
 });
 
 describe('travel-times Worker: non-POST methods', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('returns 405 for GET requests', async () => {
-    // GET requests don't call onRequestPost — simulate routing check.
-    // The Pages Function router handles method matching; we test that
-    // the handler exported is specifically for POST.
-    // We verify this via the export name: onRequestPost.
-    const { onRequestPost: handler } = await import('../../functions/api/travel-times.js');
-    expect(typeof handler).toBe('function');
-    // Named export confirms POST-only routing at the Pages level.
+    // onRequest is the catch-all handler that returns 405 for unsupported methods.
+    const ctx = makeContext(null, 'GET');
+    const response = await onRequest(ctx);
+    expect(response.status).toBe(405);
+    const body = await response.json();
+    expect(body.error).toMatch(/method not allowed/i);
+  });
+
+  it('returns 405 for PUT requests', async () => {
+    const ctx = makeContext(null, 'PUT');
+    const response = await onRequest(ctx);
+    expect(response.status).toBe(405);
+  });
+});
+
+describe('travel-times Worker: CORS preflight (OPTIONS)', () => {
+  it('returns 204 with CORS headers for OPTIONS request', async () => {
+    const response = await onRequestOptions({ env: {} });
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('OPTIONS');
+  });
+
+  it('reflects ALLOWED_ORIGIN in the preflight response', async () => {
+    const response = await onRequestOptions({ env: { ALLOWED_ORIGIN: 'https://findmeaplayground.com' } });
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://findmeaplayground.com');
   });
 });

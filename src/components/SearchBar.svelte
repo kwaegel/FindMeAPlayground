@@ -9,11 +9,15 @@
   let inputValue = $state('');
   let gpsError = $state('');
 
-  // Reflect the store's display name back into the input when origin changes
-  // (e.g. after "search from here" sets "Map location").
+  // Track the last origin we synced to the input so we can detect real changes
+  // (not just any store update). The `inputValue === ''` guard was too narrow —
+  // it prevented sync after "search from here" fired while the user had text.
+  let lastSyncedDisplayName = $state('');
   $effect(() => {
-    if ($searchStore.origin?.displayName && inputValue === '') {
-      inputValue = $searchStore.origin.displayName;
+    const displayName = $searchStore.origin?.displayName;
+    if (displayName && displayName !== lastSyncedDisplayName) {
+      inputValue = displayName;
+      lastSyncedDisplayName = displayName;
     }
   });
 
@@ -25,10 +29,13 @@
     try {
       const result = await geocode(query);
       await setOrigin(result.lat, result.lon, result.displayName);
-      // Update input to reflect the resolved display name.
+      // Update input to reflect the resolved display name (may differ from raw query).
       inputValue = result.displayName;
+      lastSyncedDisplayName = result.displayName;
     } catch (err) {
-      // Error is set on the store by setOrigin; nothing extra to do here.
+      // Geocoding errors (bad address, service down) are not caught by setOrigin —
+      // surface them via the store error channel so the existing error UI shows them.
+      searchStore.update((s) => ({ ...s, error: err.message }));
     }
   }
 
@@ -67,11 +74,11 @@
       aria-label="Address search"
       class="address-input"
     />
-    <button onclick={handleSearch} class="btn-search" aria-label="Search">
+    <button onclick={handleSearch} class="btn-search" aria-label="Search" disabled={$searchStore.loading}>
       <Search size={18} aria-hidden="true" />
       Search
     </button>
-    <button onclick={handleGps} class="btn-gps" aria-label="Use my GPS location">
+    <button onclick={handleGps} class="btn-gps" aria-label="Use my GPS location" disabled={$searchStore.loading}>
       <Locate size={18} aria-hidden="true" />
     </button>
   </div>
@@ -128,8 +135,14 @@
     white-space: nowrap;
   }
 
-  .btn-search:hover {
+  .btn-search:hover:not(:disabled) {
     background: #1d4ed8;
+  }
+
+  .btn-search:disabled,
+  .btn-gps:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .btn-gps {

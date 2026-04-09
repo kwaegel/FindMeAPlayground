@@ -122,4 +122,18 @@ describe('SearchBar', () => {
 
     expect(screen.getByText(/address not found/i)).toBeInTheDocument();
   });
+
+  it('shows a loading indicator and disables buttons while loading', async () => {
+    const { searchStore: storeMock } = await import('../../src/stores/searchStore.js');
+    storeMock.subscribe.mockImplementation((cb) => {
+      cb({ loading: true, error: null, origin: null });
+      return () => {};
+    });
+
+    render(SearchBar);
+
+    expect(screen.getByText(/searching/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /search/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /gps|location/i })).toBeDisabled();
+  });
 });

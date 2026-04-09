@@ -74,6 +74,19 @@ describe('geocode()', () => {
     fetchSpy.mockRestore();
   });
 
+  it('uses format=jsonv2 and limit=1 in the request URL', async () => {
+    // Nominatim response shape differs between format=json and format=jsonv2;
+    // regressing this would silently break coordinate parsing.
+    const fetchSpy = mockFetch(VALID_RESPONSE);
+
+    await geocode('Arlington, VA');
+
+    const calledUrl = fetchSpy.mock.calls[0][0];
+    expect(calledUrl).toContain('format=jsonv2');
+    expect(calledUrl).toContain('limit=1');
+    fetchSpy.mockRestore();
+  });
+
   it('throws "Address not found" when Nominatim returns an empty array', async () => {
     const fetchSpy = mockFetch([]);
 
@@ -121,9 +134,11 @@ describe('geocode()', () => {
 
     // Advance past the 1-second mark — now it should fire.
     await vi.advanceTimersByTimeAsync(600);
-    await p2;
+    const result2 = await p2;
 
     expect(fetchSpy2).toHaveBeenCalledTimes(1);
+    // Verify p2 resolves with its own result, not a stale reference from p1.
+    expect(result2.displayName).toBe('Arlington, Arlington County, Virginia, United States');
     fetchSpy2.mockRestore();
   });
 });
