@@ -55,6 +55,12 @@ export async function geocode(query) {
   let data;
   try {
     const response = await fetch(url.toString());
+    // A non-2xx status (e.g. 429 rate-limited by server, 500 server error)
+    // should surface as "unavailable" rather than silently falling through to
+    // the "Address not found" branch if the body happens to be empty JSON.
+    if (!response.ok) {
+      throw new Error(`Nominatim HTTP ${response.status}`);
+    }
     data = await response.json();
   } catch {
     throw new Error('Geocoding service unavailable');

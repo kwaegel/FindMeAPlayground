@@ -96,11 +96,21 @@ describe('ParkDetailModal', () => {
     expect(clearSelectedPark).toHaveBeenCalled();
   });
 
+  it('shows amenity labels for each amenity', () => {
+    mockState = { selectedPark: PARK, travelTimes: new Map() };
+    render(ParkDetailModal);
+    // PARK has ['playground', 'restroom'] — verify human-readable labels are shown.
+    expect(screen.getByText('Playground')).toBeInTheDocument();
+    expect(screen.getByText('Restroom')).toBeInTheDocument();
+  });
+
   it('closes when overlay background is clicked', async () => {
     mockState = { selectedPark: PARK, travelTimes: new Map() };
     render(ParkDetailModal);
-    const overlay = document.querySelector('.modal-overlay');
-    await fireEvent.click(overlay);
+    // The dialog element IS the overlay — clicking it directly (not its children)
+    // triggers the close. Use getByRole to avoid coupling to CSS class names.
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.click(dialog);
     expect(clearSelectedPark).toHaveBeenCalled();
   });
 });

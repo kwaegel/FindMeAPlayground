@@ -114,18 +114,25 @@ describe('localStorageSync', () => {
   });
 
   it('debounces rapid writes — only one localStorage write after multiple changes', async () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
     init();
 
-    // Fire multiple state changes rapidly.
+    // Fire multiple state changes rapidly. Start at 10 so the final value (14)
+    // is unambiguous — using 1..5 would coincide with the default of 5 and
+    // mask a bug where the debounce wrote the first value instead of the last.
     for (let i = 0; i < 5; i++) {
-      currentState = { ...currentState, radiusMiles: i + 1 };
+      currentState = { ...currentState, radiusMiles: 10 + i };
       storeSub(currentState);
     }
 
     await vi.advanceTimersByTimeAsync(600);
 
-    // Only one write should have occurred (the last debounced call).
+    // The debounce must collapse 5 rapid changes into exactly one write.
+    expect(setItemSpy).toHaveBeenCalledTimes(1);
+
+    // The written value must reflect the last state (radiusMiles: 14), not
+    // an intermediate one (e.g. 10 if the debounce wrote on the first change).
     const written = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    expect(written.radiusMiles).toBe(5); // last value
+    expect(written.radiusMiles).toBe(14);
   });
 });

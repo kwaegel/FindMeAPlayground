@@ -15,18 +15,18 @@ const VALID_RESPONSE = [
 
 // --- Helpers ---
 
-/** Build a mock fetch that resolves with the given JSON body. */
+/** Spy on globalThis.fetch and make it resolve with the given JSON body. */
 function mockFetch(body, status = 200) {
-  return vi.fn().mockResolvedValue({
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     json: () => Promise.resolve(body),
   });
 }
 
-/** Build a mock fetch that rejects with a network error. */
+/** Spy on globalThis.fetch and make it reject with a network error. */
 function mockFetchNetworkError() {
-  return vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+  return vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 }
 
 describe('geocode()', () => {
@@ -42,7 +42,7 @@ describe('geocode()', () => {
   });
 
   it('returns { lat, lon, displayName } for a valid address', async () => {
-    global.fetch = mockFetch(VALID_RESPONSE);
+    const fetchSpy = mockFetch(VALID_RESPONSE);
 
     const result = await geocode('Arlington, VA');
 
@@ -51,63 +51,79 @@ describe('geocode()', () => {
     expect(result.displayName).toBe(
       'Arlington, Arlington County, Virginia, United States'
     );
+    fetchSpy.mockRestore();
   });
 
   it('returns numeric lat and lon (not strings)', async () => {
-    global.fetch = mockFetch(VALID_RESPONSE);
+    const fetchSpy = mockFetch(VALID_RESPONSE);
 
     const result = await geocode('Arlington, VA');
 
     expect(typeof result.lat).toBe('number');
     expect(typeof result.lon).toBe('number');
+    fetchSpy.mockRestore();
   });
 
   it('includes countrycodes=us in the request URL', async () => {
-    global.fetch = mockFetch(VALID_RESPONSE);
+    const fetchSpy = mockFetch(VALID_RESPONSE);
 
     await geocode('Arlington, VA');
 
-    const calledUrl = global.fetch.mock.calls[0][0];
+    const calledUrl = fetchSpy.mock.calls[0][0];
     expect(calledUrl).toContain('countrycodes=us');
+    fetchSpy.mockRestore();
   });
 
   it('throws "Address not found" when Nominatim returns an empty array', async () => {
-    global.fetch = mockFetch([]);
+    const fetchSpy = mockFetch([]);
 
     await expect(geocode('zzznotaplacexyz')).rejects.toThrow('Address not found');
+    fetchSpy.mockRestore();
   });
 
   it('throws "Geocoding service unavailable" on network error', async () => {
-    global.fetch = mockFetchNetworkError();
+    const fetchSpy = mockFetchNetworkError();
 
     await expect(geocode('Arlington, VA')).rejects.toThrow(
       'Geocoding service unavailable'
     );
+    fetchSpy.mockRestore();
+  });
+
+  it('throws "Geocoding service unavailable" on non-200 HTTP response', async () => {
+    const fetchSpy = mockFetch({}, 429);
+
+    await expect(geocode('Arlington, VA')).rejects.toThrow(
+      'Geocoding service unavailable'
+    );
+    fetchSpy.mockRestore();
   });
 
   it('does not send a second request within 1 second of the first', async () => {
-    global.fetch = mockFetch(VALID_RESPONSE);
+    const fetchSpy1 = mockFetch(VALID_RESPONSE);
 
     // First call — should fire immediately.
     const p1 = geocode('Arlington, VA');
     await vi.runAllTimersAsync();
     await p1;
 
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(fetchSpy1).toHaveBeenCalledTimes(1);
+    fetchSpy1.mockRestore();
 
     // Second call immediately after — should be held until the 1s window expires.
     // We only advance 500ms, so it should NOT have fired yet.
-    global.fetch = mockFetch(VALID_RESPONSE);
+    const fetchSpy2 = mockFetch(VALID_RESPONSE);
     const p2 = geocode('Reston, VA');
     await vi.advanceTimersByTimeAsync(500);
 
     // The second fetch hasn't been called yet — still in cooldown.
-    expect(global.fetch).toHaveBeenCalledTimes(0);
+    expect(fetchSpy2).toHaveBeenCalledTimes(0);
 
     // Advance past the 1-second mark — now it should fire.
     await vi.advanceTimersByTimeAsync(600);
     await p2;
 
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(fetchSpy2).toHaveBeenCalledTimes(1);
+    fetchSpy2.mockRestore();
   });
 });

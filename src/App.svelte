@@ -10,6 +10,21 @@
   import ResultsList from './components/ResultsList.svelte';
   import MapView from './components/MapView.svelte';
   import ParkDetailModal from './components/ParkDetailModal.svelte';
+  import { searchStore } from './stores/searchStore.js';
+  import { getTravelTimes } from './services/travelTime.js';
+
+  // Track the last allResults reference. searchParks always returns a new
+  // array, so a reference change means a new set of results has arrived.
+  // Wired here rather than in searchStore.js to avoid a circular import
+  // (travelTime.js → searchStore.js → travelTime.js).
+  let prevResults = null;
+  $: {
+    const { origin, allResults } = $searchStore;
+    if (origin && allResults.length > 0 && allResults !== prevResults) {
+      prevResults = allResults;
+      getTravelTimes(origin, allResults);
+    }
+  }
 </script>
 
 <div class="app-shell">

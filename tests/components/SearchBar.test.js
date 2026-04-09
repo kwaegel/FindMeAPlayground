@@ -26,6 +26,11 @@ describe('SearchBar', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    // Ensure navigator stubs from GPS tests don't leak into other tests.
+    vi.unstubAllGlobals();
+  });
+
   it('renders an address input and search button', () => {
     render(SearchBar);
     expect(screen.getByRole('textbox')).toBeInTheDocument();
@@ -67,6 +72,42 @@ describe('SearchBar', () => {
   it('renders a GPS button', () => {
     render(SearchBar);
     expect(screen.getByRole('button', { name: /gps|location|my location/i })).toBeInTheDocument();
+  });
+
+  it('calls setOrigin with GPS coordinates when geolocation succeeds', async () => {
+    // Mock navigator.geolocation.getCurrentPosition to call the success callback.
+    const mockGetCurrentPosition = vi.fn((successCb) => {
+      successCb({ coords: { latitude: 38.9, longitude: -77.04 } });
+    });
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: { getCurrentPosition: mockGetCurrentPosition },
+    });
+
+    render(SearchBar);
+    await fireEvent.click(screen.getByRole('button', { name: /gps|location|my location/i }));
+
+    await waitFor(() => {
+      expect(setOrigin).toHaveBeenCalledWith(38.9, -77.04, 'Your location');
+    });
+  });
+
+  it('displays an error message when geolocation is denied', async () => {
+    // Mock navigator.geolocation.getCurrentPosition to call the error callback.
+    const mockGetCurrentPosition = vi.fn((_successCb, errorCb) => {
+      errorCb(new Error('User denied geolocation'));
+    });
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: { getCurrentPosition: mockGetCurrentPosition },
+    });
+
+    render(SearchBar);
+    await fireEvent.click(screen.getByRole('button', { name: /gps|location|my location/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/location access denied/i);
+    });
   });
 
   it('displays an error message from the store', async () => {

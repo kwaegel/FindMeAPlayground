@@ -36,15 +36,19 @@ vi.mock('leaflet', () => ({
 
 // --- Store mock ---
 let mockState = {};
+// Capture the subscribe callback so tests can push new state after render.
+let storeSub;
 
 vi.mock('../../src/stores/searchStore.js', () => ({
   searchStore: {
     subscribe: vi.fn((cb) => {
+      storeSub = cb;
       cb(mockState);
       return () => {};
     }),
   },
   selectPark: vi.fn(),
+  setOrigin: vi.fn(),
   getFilteredResults: vi.fn((state) => state.allResults ?? []),
 }));
 
@@ -117,5 +121,50 @@ describe('MapView', () => {
   it('renders a div container for the map', () => {
     const { container } = render(MapView);
     expect(container.querySelector('.map-container')).toBeInTheDocument();
+  });
+
+  it('re-centers the map when origin changes', async () => {
+    render(MapView);
+    await waitFor(() => expect(L.map).toHaveBeenCalled());
+
+    // Push a new origin through the store subscription.
+    const newOrigin = { lat: 40.71, lon: -74.01, displayName: 'New York, NY' };
+    mockState = { ...mockState, origin: newOrigin };
+    storeSub(mockState);
+
+    await waitFor(() =>
+      expect(mockMap.setView).toHaveBeenCalledWith(
+        [newOrigin.lat, newOrigin.lon],
+        expect.any(Number)
+      )
+    );
+  });
+
+  it('clicking a marker calls selectPark with the corresponding park', async () => {
+    // Capture the click handler from the FIRST marker placed.
+    // Subsequent markers overwrite it, so we stop capturing after the first.
+    let firstMarkerClickHandler = null;
+    L.marker.mockImplementation(() => ({
+      addTo: vi.fn().mockReturnThis(),
+      bindPopup: vi.fn().mockReturnThis(),
+      on: vi.fn((event, handler) => {
+        if (event === 'click' && firstMarkerClickHandler === null) {
+          firstMarkerClickHandler = handler;
+        }
+        return { addTo: vi.fn().mockReturnThis(), bindPopup: vi.fn().mockReturnThis(), on: vi.fn().mockReturnThis(), remove: vi.fn() };
+      }),
+      remove: vi.fn(),
+    }));
+
+    render(MapView);
+
+    // Wait for markers to be placed in onMount.
+    await waitFor(() => expect(L.marker).toHaveBeenCalled());
+    expect(firstMarkerClickHandler).not.toBeNull();
+
+    // Simulate a click on the first marker (Oak Hill Park).
+    firstMarkerClickHandler();
+
+    expect(selectPark).toHaveBeenCalledWith(PARKS[0]);
   });
 });

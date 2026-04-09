@@ -69,6 +69,9 @@ async function runSearch(lat, lon, radiusMiles) {
       ...s,
       allResults: results,
       visibleCount: DEFAULT_VISIBLE_COUNT,
+      // Clear travel times from the previous search — park IDs are
+      // location-specific, so stale entries must not bleed into new results.
+      travelTimes: new Map(),
       loading: false,
     }));
   } catch (err) {
@@ -115,7 +118,13 @@ export async function setRadius(miles) {
  * @param {string[]} amenities
  */
 export function setFilters(amenities) {
-  searchStore.update((s) => ({ ...s, selectedAmenities: amenities }));
+  // Reset visibleCount so the first page of filtered results is shown,
+  // rather than preserving a previously expanded count from a different filter.
+  searchStore.update((s) => ({
+    ...s,
+    selectedAmenities: amenities,
+    visibleCount: DEFAULT_VISIBLE_COUNT,
+  }));
 }
 
 /**

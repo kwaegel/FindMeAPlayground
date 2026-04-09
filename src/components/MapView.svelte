@@ -25,6 +25,11 @@
   let radiusCircle = null;
   let markers = []; // Track active markers for cleanup.
 
+  // Snapshot strings used to skip re-render when only unrelated state changes
+  // (e.g. travel times merging in should not re-pin or re-center the map).
+  let lastVisibleIds = '';
+  let lastOriginKey = '';
+
   // Compute zoom level appropriate for the search radius.
   function radiusToZoom(radiusMiles) {
     if (radiusMiles <= 5) return 13;
@@ -109,17 +114,28 @@
     if (map) map.remove();
   });
 
-  // Re-center and re-pin when store state changes.
+  // Re-center and re-pin when relevant store state changes.
+  // Guards compare snapshot strings so that unrelated updates (e.g. travel
+  // times merging in) do not trigger marker DOM churn or map re-centering.
   $: if (map) {
     const state = $searchStore;
     const filtered = getFilteredResults(state);
     const visible = filtered.slice(0, state.visibleCount);
+    const visibleIds = visible.map((p) => p.id).join(',');
 
     if (state.origin) {
-      map.setView([state.origin.lat, state.origin.lon], radiusToZoom(state.radiusMiles));
-      updateCircle(state.origin, state.radiusMiles);
+      const originKey = `${state.origin.lat},${state.origin.lon},${state.radiusMiles}`;
+      if (originKey !== lastOriginKey) {
+        map.setView([state.origin.lat, state.origin.lon], radiusToZoom(state.radiusMiles));
+        updateCircle(state.origin, state.radiusMiles);
+        lastOriginKey = originKey;
+      }
     }
-    placePins(visible);
+
+    if (visibleIds !== lastVisibleIds) {
+      placePins(visible);
+      lastVisibleIds = visibleIds;
+    }
   }
 </script>
 

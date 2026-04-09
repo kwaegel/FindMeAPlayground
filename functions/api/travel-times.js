@@ -8,16 +8,22 @@
 
 const ORS_MATRIX_URL = 'https://api.openrouteservice.org/v2/matrix/driving-car';
 
-// CORS origin — restrict to the deployed app. In development the Vite dev
-// server runs on localhost; the '*' fallback is safe because the ORS key
-// only lives in the Worker environment, not in any response body.
-const ALLOWED_ORIGIN = '*';
-
-/** Build standard CORS + JSON response headers. */
-function headers(extra = {}) {
+/**
+ * Build standard CORS + JSON response headers.
+ *
+ * CORS origin: use the ALLOWED_ORIGIN env variable when deployed so only the
+ * production domain can call this proxy. Falls back to '*' in local dev
+ * (wrangler pages dev) where the variable is not set. The ORS API key is
+ * never in the response body, but locking the origin prevents third-party
+ * sites from burning through the ORS free-tier quota (2,500 req/day).
+ *
+ * @param {string} allowedOrigin - Value of env.ALLOWED_ORIGIN, or '*'.
+ * @param {Record<string, string>} [extra] - Additional headers to merge in.
+ */
+function headers(allowedOrigin, extra = {}) {
   return {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': ALLOWED_ORIGIN,
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     ...extra,
@@ -42,6 +48,9 @@ function isNumeric(v) {
  * @returns {Promise<Response>}
  */
 export async function onRequestPost({ request, env }) {
+  // Resolve the allowed origin per-request from the env secret.
+  const allowedOrigin = env?.ALLOWED_ORIGIN ?? '*';
+
   // --- Parse and validate input ---
 
   let body;
@@ -50,7 +59,7 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
       status: 400,
-      headers: headers(),
+      headers: headers(allowedOrigin),
     });
   }
 
@@ -59,21 +68,21 @@ export async function onRequestPost({ request, env }) {
   if (!origin) {
     return new Response(JSON.stringify({ error: 'Missing required field: origin' }), {
       status: 400,
-      headers: headers(),
+      headers: headers(allowedOrigin),
     });
   }
 
   if (!destinations) {
     return new Response(JSON.stringify({ error: 'Missing required field: destinations' }), {
       status: 400,
-      headers: headers(),
+      headers: headers(allowedOrigin),
     });
   }
 
   if (!Array.isArray(destinations) || destinations.length < 1 || destinations.length > 50) {
     return new Response(
       JSON.stringify({ error: 'destinations must contain 1-50 coordinate pairs' }),
-      { status: 400, headers: headers() }
+      { status: 400, headers: headers(allowedOrigin) }
     );
   }
 
@@ -81,7 +90,7 @@ export async function onRequestPost({ request, env }) {
   if (!Array.isArray(origin) || origin.length < 2 || !isNumeric(origin[0]) || !isNumeric(origin[1])) {
     return new Response(JSON.stringify({ error: 'origin must be [longitude, latitude] numbers' }), {
       status: 400,
-      headers: headers(),
+      headers: headers(allowedOrigin),
     });
   }
 
@@ -90,7 +99,7 @@ export async function onRequestPost({ request, env }) {
     if (!Array.isArray(dest) || dest.length < 2 || !isNumeric(dest[0]) || !isNumeric(dest[1])) {
       return new Response(
         JSON.stringify({ error: 'Each destination must be [longitude, latitude] numbers' }),
-        { status: 400, headers: headers() }
+        { status: 400, headers: headers(allowedOrigin) }
       );
     }
   }
@@ -125,26 +134,33 @@ export async function onRequestPost({ request, env }) {
   } catch {
     return new Response(JSON.stringify({ error: 'Travel time service unavailable' }), {
       status: 502,
-      headers: headers(),
+      headers: headers(allowedOrigin),
     });
   }
 
   // ORS returns durations as a 2D array: [[t1, t2, ...]].
   // Row 0 is the single source (our origin); each column is a destination.
-  const times = (orsData.durations?.[0] ?? []).map((t) => (t === null ? null : t));
+  const times = orsData.durations?.[0] ?? [];
 
   return new Response(JSON.stringify({ times }), {
     status: 200,
-    headers: headers(),
+    headers: headers(allowedOrigin),
   });
 }
 
 /**
  * Handle OPTIONS preflight requests for CORS.
+ * Mirrors the same allowed origin as the POST handler so that browsers
+ * enforcing strict-origin checking don't see a mismatch between preflight
+ * and actual response headers.
+ *
+ * @param {object} context - Cloudflare Pages Function context.
+ * @param {{ ALLOWED_ORIGIN?: string }} context.env
  */
-export async function onRequestOptions() {
+export async function onRequestOptions({ env }) {
+  const allowedOrigin = env?.ALLOWED_ORIGIN ?? '*';
   return new Response(null, {
     status: 204,
-    headers: headers(),
+    headers: headers(allowedOrigin),
   });
 }

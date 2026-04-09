@@ -34,11 +34,13 @@ out center tags;
 
 /**
  * Parse a single Overpass element into a ParkResult.
+ * Returns null for elements where coordinates cannot be resolved (e.g. a
+ * relation element returned without a center property by Overpass).
  *
  * @param {object} element - Raw Overpass API element.
  * @param {number} originLat
  * @param {number} originLon
- * @returns {ParkResult}
+ * @returns {ParkResult | null}
  */
 function parseElement(element, originLat, originLon) {
   const { type, id, tags = {} } = element;
@@ -46,6 +48,10 @@ function parseElement(element, originLat, originLon) {
   // Ways and relations use centroid coordinates; nodes have lat/lon directly.
   const lat = element.center ? element.center.lat : element.lat;
   const lon = element.center ? element.center.lon : element.lon;
+
+  // Guard: skip elements where Overpass didn't provide resolvable coordinates.
+  // This can happen for relation elements that lack a center in the response.
+  if (lat == null || lon == null) return null;
 
   return {
     id: `${type}/${id}`,
@@ -92,7 +98,18 @@ export async function searchParks(lat, lon, radiusMeters) {
     throw new Error('Park search service unavailable.');
   }
 
-  const results = (data.elements ?? []).map((el) => parseElement(el, lat, lon));
+  // Parse elements, filter out any that couldn't be resolved (null returns),
+  // then deduplicate by id. An element can match both query arms (e.g. a node
+  // tagged both leisure=park and leisure=playground) and appear twice.
+  const seen = new Set();
+  const results = (data.elements ?? [])
+    .map((el) => parseElement(el, lat, lon))
+    .filter((r) => {
+      if (r === null) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
 
   // Sort ascending by straight-line distance from origin.
   results.sort((a, b) => a.distanceMiles - b.distanceMiles);

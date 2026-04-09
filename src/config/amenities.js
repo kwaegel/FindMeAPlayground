@@ -46,24 +46,14 @@ export const AMENITIES = [
 export function detectAmenities(tags) {
   const result = [];
 
-  for (const amenity of AMENITIES) {
-    const { key, osmTags } = amenity;
-
-    if (key === 'playground') {
-      if (tags.leisure === 'playground') result.push(key);
-    } else if (key === 'restroom') {
-      if (tags.amenity === 'toilets') result.push(key);
-    } else if (key === 'hiking-trail') {
-      // Requires both highway=path AND a sac_scale tag present.
-      if (tags.highway === 'path' && tags.sac_scale) result.push(key);
-    } else {
-      // Generic fallback for future amenities: all osmTags must match.
-      const matches = Object.entries(osmTags).every(([k, v]) => {
-        if (v === '*') return k in tags;
-        return tags[k] === v;
-      });
-      if (matches) result.push(key);
-    }
+  for (const { key, osmTags } of AMENITIES) {
+    // All osmTags entries must match. A value of '*' means the key must exist
+    // with any value (e.g. sac_scale: '*' matches any graded trail).
+    const matches = Object.entries(osmTags).every(([k, v]) => {
+      if (v === '*') return k in tags;
+      return tags[k] === v;
+    });
+    if (matches) result.push(key);
   }
 
   return result;

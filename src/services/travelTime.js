@@ -24,10 +24,14 @@ export async function getTravelTimes(origin, parks) {
   if (parks.length === 0) return;
 
   // Split parks into batches to stay within the ORS 50-destination limit.
+  // All batches are fired in parallel so results arrive as quickly as possible.
+  // fetchBatch is individually error-tolerant, so one batch failure does not
+  // cancel the others.
+  const batches = [];
   for (let i = 0; i < parks.length; i += BATCH_SIZE) {
-    const batch = parks.slice(i, i + BATCH_SIZE);
-    await fetchBatch(origin, batch);
+    batches.push(parks.slice(i, i + BATCH_SIZE));
   }
+  await Promise.all(batches.map((batch) => fetchBatch(origin, batch)));
 }
 
 /**

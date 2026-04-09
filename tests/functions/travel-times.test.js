@@ -31,7 +31,7 @@ function makeContext(body, method = 'POST') {
 
 /** Mock ORS matrix response with n sequential travel times. */
 function mockOrsSuccess(times) {
-  global.fetch = vi.fn().mockResolvedValue({
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     ok: true,
     status: 200,
     json: () =>
@@ -42,7 +42,7 @@ function mockOrsSuccess(times) {
 }
 
 function mockOrsError(status = 500) {
-  global.fetch = vi.fn().mockResolvedValue({
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     ok: false,
     status,
     json: () => Promise.resolve({ error: 'ORS error' }),
@@ -137,22 +137,36 @@ describe('travel-times Worker: POST /api/travel-times', () => {
     expect(body.times[1]).toBeNull();
   });
 
-  it('includes Access-Control-Allow-Origin header', async () => {
+  it('returns Access-Control-Allow-Origin: * when ALLOWED_ORIGIN env is not set', async () => {
     mockOrsSuccess([300, 600]);
 
+    // makeContext sets no ALLOWED_ORIGIN — dev fallback should be '*'.
     const ctx = makeContext(VALID_BODY);
     const response = await onRequestPost(ctx);
 
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBeTruthy();
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+  });
+
+  it('returns the configured ALLOWED_ORIGIN when env variable is set', async () => {
+    mockOrsSuccess([300, 600]);
+
+    // Simulate production deployment with a locked-down origin.
+    const ctx = {
+      ...makeContext(VALID_BODY),
+      env: { ORS_API_KEY: 'test-key-123', ALLOWED_ORIGIN: 'https://findmeaplayground.com' },
+    };
+    const response = await onRequestPost(ctx);
+
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://findmeaplayground.com');
   });
 
   it('attaches ORS API key in the Authorization header to ORS', async () => {
-    mockOrsSuccess([300]);
+    const fetchSpy = mockOrsSuccess([300]);
 
     const ctx = makeContext({ origin: VALID_BODY.origin, destinations: [VALID_BODY.destinations[0]] });
     await onRequestPost(ctx);
 
-    const orsCallOptions = global.fetch.mock.calls[0][1];
+    const orsCallOptions = fetchSpy.mock.calls[0][1];
     // The ORS key must be in the Authorization header sent to ORS,
     // not in the Worker's response to the client.
     expect(orsCallOptions.headers['Authorization']).toBe('test-key-123');

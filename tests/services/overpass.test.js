@@ -26,7 +26,7 @@ const MOCK_RESPONSE = {
 };
 
 function mockFetch(body, status = 200) {
-  return vi.fn().mockResolvedValue({
+  return vi.spyOn(globalThis, 'fetch').mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
     text: () => Promise.resolve(JSON.stringify(body)),
@@ -35,7 +35,7 @@ function mockFetch(body, status = 200) {
 }
 
 function mockFetchNetworkError() {
-  return vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+  return vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 }
 
 // Search origin near the mock parks.
@@ -49,8 +49,7 @@ describe('searchParks()', () => {
   });
 
   it('returns an array of ParkResult objects with all required fields', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
 
     expect(Array.isArray(results)).toBe(true);
@@ -68,8 +67,7 @@ describe('searchParks()', () => {
   });
 
   it('uses centroid coordinates for way elements', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     // Oak Hill Park is a way — must use center.lat / center.lon
     const park = results.find((r) => r.name === 'Oak Hill Park');
@@ -78,30 +76,26 @@ describe('searchParks()', () => {
   });
 
   it('assigns "Unnamed Park" when name tag is absent', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     const unnamed = results.find((r) => r.id === 'node/67890');
     expect(unnamed.name).toBe('Unnamed Park');
   });
 
   it('formats id as "type/id"', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     expect(results.find((r) => r.name === 'Oak Hill Park').id).toBe('way/12345');
   });
 
   it('initializes travelTimeSeconds to null', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     expect(results.every((r) => r.travelTimeSeconds === null)).toBe(true);
   });
 
   it('calculates distanceMiles as a positive number for each result', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     expect(results.every((r) => typeof r.distanceMiles === 'number' && r.distanceMiles > 0)).toBe(
       true
@@ -109,8 +103,7 @@ describe('searchParks()', () => {
   });
 
   it('sorts results by ascending distance', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     for (let i = 1; i < results.length; i++) {
       expect(results[i].distanceMiles).toBeGreaterThanOrEqual(results[i - 1].distanceMiles);
@@ -118,8 +111,7 @@ describe('searchParks()', () => {
   });
 
   it('includes the playground amenity for elements tagged leisure=playground', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     const playground = results.find((r) => r.id === 'node/67890');
     expect(playground.amenities).toContain('playground');
@@ -133,46 +125,58 @@ describe('searchParks()', () => {
           id: 1,
           lat: 38.89,
           lon: -77.03,
-          tags: { leisure: 'park', name: 'Test Park', 'amenity': 'toilets' },
+          tags: { leisure: 'park', name: 'Test Park', amenity: 'toilets' },
         },
       ],
     };
-    global.fetch = mockFetch(response);
-
+    mockFetch(response);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     expect(results[0].amenities).toContain('restroom');
   });
 
-  it('preserves raw OSM tags in osmTags field', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
+  it('includes the hiking-trail amenity for elements tagged highway=path with sac_scale', async () => {
+    const response = {
+      elements: [
+        {
+          type: 'node',
+          id: 2,
+          lat: 38.89,
+          lon: -77.03,
+          tags: { leisure: 'park', name: 'Trail Park', highway: 'path', sac_scale: 'hiking' },
+        },
+      ],
+    };
+    mockFetch(response);
+    const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+    expect(results[0].amenities).toContain('hiking-trail');
+  });
 
+  it('preserves raw OSM tags in osmTags field', async () => {
+    mockFetch(MOCK_RESPONSE);
     const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
     const park = results.find((r) => r.name === 'Oak Hill Park');
     expect(park.osmTags).toEqual({ name: 'Oak Hill Park', leisure: 'park' });
   });
 
   it('uses Overpass API with POST method', async () => {
-    global.fetch = mockFetch(MOCK_RESPONSE);
-
+    const fetchSpy = mockFetch(MOCK_RESPONSE);
     await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
 
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining('overpass'),
       expect.objectContaining({ method: 'POST' })
     );
   });
 
   it('throws "Search failed, please try again." on HTTP error', async () => {
-    global.fetch = mockFetch({}, 429);
-
+    mockFetch({}, 429);
     await expect(searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M)).rejects.toThrow(
       'Search failed, please try again.'
     );
   });
 
   it('throws "Park search service unavailable." on network error', async () => {
-    global.fetch = mockFetchNetworkError();
-
+    mockFetchNetworkError();
     await expect(searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M)).rejects.toThrow(
       'Park search service unavailable.'
     );
