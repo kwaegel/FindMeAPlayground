@@ -1,0 +1,131 @@
+// Tests for localStorageSync — localStorage persistence of search state.
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const STORAGE_KEY = 'findmeaplayground_state';
+
+// Store mock — we control the subscribe callback and capture setOrigin calls.
+let storeSub;
+let currentState = {};
+
+vi.mock('../../src/stores/searchStore.js', () => ({
+  searchStore: {
+    subscribe: vi.fn((cb) => {
+      storeSub = cb;
+      cb(currentState);
+      return () => {};
+    }),
+  },
+  setOrigin: vi.fn(),
+  setRadius: vi.fn(),
+  setFilters: vi.fn(),
+}));
+
+import { init } from '../../src/stores/localStorageSync.js';
+import { setOrigin, setRadius, setFilters } from '../../src/stores/searchStore.js';
+
+describe('localStorageSync', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    currentState = { origin: null, radiusMiles: 5, selectedAmenities: [] };
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // --- Restore on load ---
+
+  it('restores origin from localStorage on init', () => {
+    const stored = {
+      origin: { lat: 38.895, lon: -77.036, displayName: 'Arlington, VA' },
+      radiusMiles: 10,
+      selectedAmenities: ['playground'],
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
+
+    init();
+
+    expect(setOrigin).toHaveBeenCalledWith(38.895, -77.036, 'Arlington, VA');
+  });
+
+  it('restores radius on init even without origin', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ radiusMiles: 15, selectedAmenities: [] }));
+
+    init();
+
+    expect(setRadius).toHaveBeenCalledWith(15);
+  });
+
+  it('restores selectedAmenities on init', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ radiusMiles: 5, selectedAmenities: ['restroom'] })
+    );
+
+    init();
+
+    expect(setFilters).toHaveBeenCalledWith(['restroom']);
+  });
+
+  it('does not call setOrigin when no stored origin', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ radiusMiles: 5, selectedAmenities: [] }));
+
+    init();
+
+    expect(setOrigin).not.toHaveBeenCalled();
+  });
+
+  it('uses defaults silently when localStorage key is absent', () => {
+    // No localStorage entry.
+    expect(() => init()).not.toThrow();
+    expect(setOrigin).not.toHaveBeenCalled();
+  });
+
+  it('uses defaults silently when localStorage contains corrupt JSON', () => {
+    localStorage.setItem(STORAGE_KEY, 'not-valid-json{');
+    expect(() => init()).not.toThrow();
+  });
+
+  // --- Persist on change ---
+
+  it('writes state to localStorage after store changes (debounced at 500ms)', async () => {
+    init();
+
+    // Simulate a store state change.
+    currentState = {
+      origin: { lat: 38.895, lon: -77.036, displayName: 'Arlington, VA' },
+      radiusMiles: 10,
+      selectedAmenities: ['playground'],
+    };
+    storeSub(currentState);
+
+    // Before debounce fires — nothing written yet.
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+
+    // Advance past the 500ms debounce window.
+    await vi.advanceTimersByTimeAsync(600);
+
+    const written = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    expect(written.origin.displayName).toBe('Arlington, VA');
+    expect(written.radiusMiles).toBe(10);
+    expect(written.selectedAmenities).toEqual(['playground']);
+  });
+
+  it('debounces rapid writes — only one localStorage write after multiple changes', async () => {
+    init();
+
+    // Fire multiple state changes rapidly.
+    for (let i = 0; i < 5; i++) {
+      currentState = { ...currentState, radiusMiles: i + 1 };
+      storeSub(currentState);
+    }
+
+    await vi.advanceTimersByTimeAsync(600);
+
+    // Only one write should have occurred (the last debounced call).
+    const written = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    expect(written.radiusMiles).toBe(5); // last value
+  });
+});

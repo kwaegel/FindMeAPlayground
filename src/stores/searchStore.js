@@ -1,0 +1,173 @@
+// Central search store — the single source of truth for all app state.
+// Orchestrates data fetching when search inputs change and exposes
+// action functions that components call to drive state transitions.
+//
+// State is a Svelte writable store. Components subscribe via $searchStore.
+
+import { writable, get } from 'svelte/store';
+import { searchParks } from '../services/overpass.js';
+
+// Miles to meters conversion factor.
+const MILES_TO_METERS = 1609.34;
+
+// Default number of results to show before "Show more" is clicked.
+const DEFAULT_VISIBLE_COUNT = 20;
+
+/**
+ * @typedef {Object} SearchState
+ * @property {{ lat: number, lon: number, displayName: string } | null} origin
+ * @property {5 | 10 | 15} radiusMiles
+ * @property {string[]} selectedAmenities
+ * @property {ParkResult[]} allResults
+ * @property {number} visibleCount
+ * @property {Map<string, number>} travelTimes
+ * @property {ParkResult | null} selectedPark
+ * @property {boolean} loading
+ * @property {string | null} error
+ */
+
+/** @returns {SearchState} */
+function defaultState() {
+  return {
+    origin: null,
+    radiusMiles: 5,
+    selectedAmenities: [],
+    allResults: [],
+    visibleCount: DEFAULT_VISIBLE_COUNT,
+    travelTimes: new Map(),
+    selectedPark: null,
+    loading: false,
+    error: null,
+  };
+}
+
+export const searchStore = writable(defaultState());
+
+/**
+ * Reset store to defaults. Exported for test isolation only.
+ */
+export function _resetStore() {
+  searchStore.set(defaultState());
+}
+
+// --- Internal helpers ---
+
+/**
+ * Run a park search using the current store's origin and given radius.
+ * Manages loading/error state around the async call.
+ *
+ * @param {number} lat
+ * @param {number} lon
+ * @param {number} radiusMiles
+ */
+async function runSearch(lat, lon, radiusMiles) {
+  searchStore.update((s) => ({ ...s, loading: true, error: null }));
+
+  try {
+    const results = await searchParks(lat, lon, radiusMiles * MILES_TO_METERS);
+    searchStore.update((s) => ({
+      ...s,
+      allResults: results,
+      visibleCount: DEFAULT_VISIBLE_COUNT,
+      loading: false,
+    }));
+  } catch (err) {
+    searchStore.update((s) => ({
+      ...s,
+      loading: false,
+      error: err.message,
+    }));
+  }
+}
+
+// --- Public action functions ---
+
+/**
+ * Set the search origin and trigger a new park search.
+ *
+ * @param {number} lat
+ * @param {number} lon
+ * @param {string} displayName
+ */
+export async function setOrigin(lat, lon, displayName) {
+  const { radiusMiles } = get(searchStore);
+  searchStore.update((s) => ({ ...s, origin: { lat, lon, displayName } }));
+  await runSearch(lat, lon, radiusMiles);
+}
+
+/**
+ * Update the search radius. Triggers a new search if an origin is set.
+ *
+ * @param {5 | 10 | 15} miles
+ */
+export async function setRadius(miles) {
+  searchStore.update((s) => ({ ...s, radiusMiles: miles }));
+  const { origin } = get(searchStore);
+  if (origin) {
+    await runSearch(origin.lat, origin.lon, miles);
+  }
+}
+
+/**
+ * Update the selected amenity filters. Filters allResults client-side;
+ * does NOT trigger a new Overpass query.
+ *
+ * @param {string[]} amenities
+ */
+export function setFilters(amenities) {
+  searchStore.update((s) => ({ ...s, selectedAmenities: amenities }));
+}
+
+/**
+ * Expand the visible result count by 20 (pagination).
+ */
+export function incrementVisibleCount() {
+  searchStore.update((s) => ({ ...s, visibleCount: s.visibleCount + 20 }));
+}
+
+/**
+ * Set the currently selected park (opens the detail modal).
+ *
+ * @param {ParkResult} park
+ */
+export function selectPark(park) {
+  searchStore.update((s) => ({ ...s, selectedPark: park }));
+}
+
+/**
+ * Clear the selected park (closes the detail modal).
+ */
+export function clearSelectedPark() {
+  searchStore.update((s) => ({ ...s, selectedPark: null }));
+}
+
+/**
+ * Merge asynchronously-arrived travel times into the store.
+ * Entries from the incoming map are merged into the existing travelTimes map.
+ *
+ * @param {Map<string, number>} timesMap - Map of parkId → seconds.
+ */
+export function mergeTravelTimes(timesMap) {
+  searchStore.update((s) => {
+    const merged = new Map(s.travelTimes);
+    for (const [id, seconds] of timesMap) {
+      merged.set(id, seconds);
+    }
+    return { ...s, travelTimes: merged };
+  });
+}
+
+/**
+ * Derive filtered results from allResults given the current selectedAmenities.
+ * Uses AND logic: a park must have ALL selected amenities.
+ *
+ * @param {SearchState} state
+ * @returns {ParkResult[]}
+ */
+export function getFilteredResults(state) {
+  const { allResults, selectedAmenities } = state;
+  if (selectedAmenities.length === 0) return allResults;
+  return allResults.filter((park) =>
+    selectedAmenities.every((amenity) => park.amenities.includes(amenity))
+  );
+}

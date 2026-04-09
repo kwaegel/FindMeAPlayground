@@ -1,0 +1,28 @@
+// Unit tests for the Haversine distance utility.
+import { describe, it, expect } from 'vitest';
+import { haversineDistance } from '../../src/utils/haversine.js';
+
+describe('haversineDistance()', () => {
+  it('returns 0 for identical coordinates', () => {
+    expect(haversineDistance(38.895, -77.036, 38.895, -77.036)).toBe(0);
+  });
+
+  it('calculates approximately correct distance between two known points', () => {
+    // Arlington, VA to Washington DC Monument (~3.7 miles)
+    const dist = haversineDistance(38.895, -77.036, 38.889, -77.035);
+    expect(dist).toBeGreaterThan(0);
+    expect(dist).toBeLessThan(1); // ~0.4 miles apart
+  });
+
+  it('calculates ~2,451 miles between Los Angeles and New York', () => {
+    // Known great-circle distance: ~2,451 miles
+    const dist = haversineDistance(34.0522, -118.2437, 40.7128, -74.006);
+    expect(dist).toBeGreaterThan(2400);
+    expect(dist).toBeLessThan(2500);
+  });
+
+  it('returns a positive number for any two different points', () => {
+    const dist = haversineDistance(38.0, -77.0, 39.0, -78.0);
+    expect(dist).toBeGreaterThan(0);
+  });
+});
