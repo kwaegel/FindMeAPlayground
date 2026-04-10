@@ -9,6 +9,9 @@ vi.mock('../../src/stores/searchStore.js', () => ({
       cb({ loading: false, error: null, origin: null });
       return () => {};
     }),
+    // SearchBar calls searchStore.update() to clear the store error on GPS click
+    // and to surface geocoding errors via the error channel.
+    update: vi.fn(),
   },
   setOrigin: vi.fn(),
 }));
@@ -121,6 +124,25 @@ describe('SearchBar', () => {
     render(SearchBar);
 
     expect(screen.getByText(/address not found/i)).toBeInTheDocument();
+  });
+
+  it('GPS click clears any prior store error', async () => {
+    // If the user gets an address-search error then clicks GPS, the stale error
+    // should be cleared before the GPS result arrives (not linger on screen).
+    const { searchStore: storeMock } = await import('../../src/stores/searchStore.js');
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      geolocation: { getCurrentPosition: vi.fn() }, // don't resolve — just checking the clear
+    });
+
+    render(SearchBar);
+    await fireEvent.click(screen.getByRole('button', { name: /gps|location|my location/i }));
+
+    // The component calls searchStore.update(fn) to clear the error.
+    expect(storeMock.update).toHaveBeenCalled();
+    const updateFn = storeMock.update.mock.calls[0][0];
+    const result = updateFn({ loading: false, error: 'Previous error', origin: null });
+    expect(result.error).toBeNull();
   });
 
   it('shows a loading indicator and disables buttons while loading', async () => {

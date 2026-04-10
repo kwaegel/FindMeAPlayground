@@ -13,6 +13,17 @@ const VALID_RESPONSE = [
   },
 ];
 
+// A distinct second fixture used in the rate-limit test to confirm that the
+// second call resolves with its own result and not a stale reference from the
+// first call. Using a different displayName makes a stale-reference bug fail.
+const VALID_RESPONSE_2 = [
+  {
+    lat: '38.9686',
+    lon: '-77.3411',
+    display_name: 'Reston, Fairfax County, Virginia, United States',
+  },
+];
+
 // --- Helpers ---
 
 /** Spy on globalThis.fetch and make it resolve with the given JSON body. */
@@ -125,7 +136,9 @@ describe('geocode()', () => {
 
     // Second call immediately after — should be held until the 1s window expires.
     // We only advance 500ms, so it should NOT have fired yet.
-    const fetchSpy2 = mockFetch(VALID_RESPONSE);
+    // Use a distinct response fixture so that a stale-reference bug (p2 resolving
+    // with p1's result) causes this test to fail rather than pass vacuously.
+    const fetchSpy2 = mockFetch(VALID_RESPONSE_2);
     const p2 = geocode('Reston, VA');
     await vi.advanceTimersByTimeAsync(500);
 
@@ -138,7 +151,7 @@ describe('geocode()', () => {
 
     expect(fetchSpy2).toHaveBeenCalledTimes(1);
     // Verify p2 resolves with its own result, not a stale reference from p1.
-    expect(result2.displayName).toBe('Arlington, Arlington County, Virginia, United States');
+    expect(result2.displayName).toBe('Reston, Fairfax County, Virginia, United States');
     fetchSpy2.mockRestore();
   });
 });

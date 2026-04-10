@@ -50,56 +50,56 @@
     <ul class="park-list">
       {#each visible as park (park.id)}
         {@const travelSecs = state.travelTimes.get(park.id)}
-        <!-- Using a button for the interactive list item gives correct a11y
-             semantics. The inner directions link stops propagation to avoid
-             double-firing the selectPark action. -->
-        <li role="listitem">
-        <button
-          class="park-item"
-          onclick={() => selectPark(park)}
-          type="button"
-        >
-          <div class="park-header">
-            <span class="park-name">{park.name}</span>
-            <span class="park-distance">
-              <MapPin size={12} aria-hidden="true" />
-              {formatMiles(park.distanceMiles)}
-            </span>
-          </div>
-
-          <div class="park-meta">
-            {#if travelSecs != null}
-              <span class="travel-time">
-                <Clock size={12} aria-hidden="true" />
-                {formatMinutes(travelSecs)}
+        <!-- The <li> is a flex row: the button occupies the main area and the
+             directions link is a sibling (not nested inside the button).
+             Nesting <a> inside <button> is invalid HTML — interactive elements
+             must not be nested — so the link lives alongside the button. -->
+        <li class="park-list-item">
+          <button
+            class="park-item"
+            onclick={() => selectPark(park)}
+            type="button"
+            aria-label={park.name}
+          >
+            <div class="park-header">
+              <span class="park-name">{park.name}</span>
+              <span class="park-distance">
+                <MapPin size={12} aria-hidden="true" />
+                {formatMiles(park.distanceMiles)}
               </span>
-            {/if}
-
-            <div class="amenity-icons" aria-label="Amenities">
-              {#each park.amenities as amenity}
-                {#if AMENITY_ICONS[amenity]}
-                  {@const Icon = AMENITY_ICONS[amenity]}
-                  <span title={amenity} class="amenity-icon">
-                    <Icon size={14} aria-hidden="true" />
-                  </span>
-                {/if}
-              {/each}
             </div>
 
-            <!-- svelte-ignore a11y_invalid_attribute -->
-            <a
-              href={mapsUrl(park)}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="directions-link"
-              aria-label="Directions to {park.name}"
-              onclick={(e) => e.stopPropagation()}
-            >
-              <Navigation size={12} aria-hidden="true" />
-              Directions
-            </a>
-          </div>
-        </button>
+            <div class="park-meta">
+              {#if travelSecs != null}
+                <span class="travel-time">
+                  <Clock size={12} aria-hidden="true" />
+                  {formatMinutes(travelSecs)}
+                </span>
+              {/if}
+
+              <div class="amenity-icons" aria-label="Amenities">
+                {#each park.amenities as amenity}
+                  {#if AMENITY_ICONS[amenity]}
+                    {@const Icon = AMENITY_ICONS[amenity]}
+                    <span title={amenity} class="amenity-icon">
+                      <Icon size={14} aria-hidden="true" />
+                    </span>
+                  {/if}
+                {/each}
+              </div>
+            </div>
+          </button>
+
+          <a
+            href={mapsUrl(park)}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="directions-link"
+            aria-label="Directions to {park.name}"
+          >
+            <Navigation size={12} aria-hidden="true" />
+            Directions
+          </a>
         </li>
       {/each}
     </ul>
@@ -128,12 +128,19 @@
     flex: 1;
   }
 
+  /* Each list item is a flex row: button (flex: 1) + directions link (flex-shrink: 0) */
+  .park-list-item {
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid #f3f4f6;
+  }
+
   .park-item {
+    flex: 1;
+    min-width: 0; /* prevent text overflow from expanding the flex item */
     display: block;
-    width: 100%;
     padding: 0.75rem 1rem;
     border: none;
-    border-bottom: 1px solid #f3f4f6;
     background: none;
     text-align: left;
     cursor: pointer;
@@ -205,10 +212,12 @@
     display: flex;
     align-items: center;
     gap: 2px;
+    flex-shrink: 0;
+    padding: 0.75rem 1rem;
     font-size: 0.8125rem;
     color: #2563eb;
     text-decoration: none;
-    margin-left: auto;
+    white-space: nowrap;
   }
 
   .directions-link:hover {

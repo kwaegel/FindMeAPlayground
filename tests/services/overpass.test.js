@@ -208,6 +208,13 @@ describe('searchParks()', () => {
     expect(results[0].id).toBe('relation/99999');
   });
 
+  it('returns an empty array when elements is empty (no parks in radius)', async () => {
+    mockFetch({ elements: [] });
+    const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+    expect(Array.isArray(results)).toBe(true);
+    expect(results.length).toBe(0);
+  });
+
   it('throws "Search failed, please try again." on HTTP error', async () => {
     mockFetch({}, 429);
     await expect(searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M)).rejects.toThrow(

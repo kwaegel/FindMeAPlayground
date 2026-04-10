@@ -2,9 +2,12 @@
   // ParkDetailModal — overlay showing full detail for the selected park.
   // Conditionally rendered when $searchStore.selectedPark is non-null.
   // Closes on: close button click, overlay background click, Escape key.
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { Baby, Bath, Footprints, X, MapPin, Clock, Navigation } from 'lucide-svelte';
   import { searchStore, clearSelectedPark } from '../stores/searchStore.js';
+
+  // Bound to the close button so we can move focus there when the modal opens.
+  let closeBtn;
 
   const AMENITY_ICONS = {
     playground: { Icon: Baby, label: 'Playground' },
@@ -30,7 +33,16 @@
   }
 
   function handleKeyDown(event) {
-    if (event.key === 'Escape') clearSelectedPark();
+    // Guard: only act when the modal is actually open. Without this, pressing
+    // Escape in any input field (address bar, etc.) would fire a spurious
+    // clearSelectedPark() store update every time.
+    if (event.key === 'Escape' && $searchStore.selectedPark) clearSelectedPark();
+  }
+
+  // Move focus to the close button when the modal opens so keyboard and
+  // screen reader users are placed inside the dialog immediately.
+  $: if ($searchStore.selectedPark) {
+    tick().then(() => closeBtn?.focus());
   }
 
   // Attach/detach the Escape key listener at the document level.
@@ -53,7 +65,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2 id="modal-title" class="modal-title">{park.name}</h2>
-        <button class="close-btn" onclick={clearSelectedPark} aria-label="Close">
+        <button class="close-btn" onclick={clearSelectedPark} aria-label="Close" bind:this={closeBtn}>
           <X size={20} aria-hidden="true" />
         </button>
       </div>

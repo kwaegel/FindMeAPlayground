@@ -45,6 +45,9 @@
 
   function handleGps() {
     gpsError = '';
+    // Clear any lingering address-search error so stale error text doesn't
+    // remain visible while the GPS search is running.
+    searchStore.update((s) => ({ ...s, error: null }));
     if (!navigator.geolocation) {
       gpsError = 'Geolocation is not supported by your browser.';
       return;

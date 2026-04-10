@@ -73,13 +73,42 @@ describe('getTravelTimes()', () => {
   });
 
   it('batches requests when parks.length > 50', async () => {
-    // 51 parks → 2 batches (50 + 1)
+    // 51 parks → 2 batches (50 + 1). Each batch gets its own response so we
+    // can verify the second batch's single result is mapped correctly and not
+    // silently overwritten by the first batch's 50-element response.
     const parks = Array.from({ length: 51 }, (_, i) => makePark(`way/${i}`, 38.9 + i * 0.001, -77.0));
-    const fetchSpy = mockFetch(Array(50).fill(300));
+    vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ times: Array(50).fill(300) }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ times: [600] }),
+      });
 
     await getTravelTimes(ORIGIN, parks);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    // The 51st park (way/50) should get the 600s value from the second batch.
+    const mergedMap = mergeTravelTimes.mock.calls.reduce((acc, [map]) => {
+      for (const [k, v] of map) acc.set(k, v);
+      return acc;
+    }, new Map());
+    expect(mergedMap.get('way/50')).toBe(600);
+    expect(mergedMap.get('way/0')).toBe(300);
+  });
+
+  it('does not throw on HTTP error — silently skips', async () => {
+    const parks = [makePark('way/1', 38.9, -77.04)];
+    mockFetch([], 500);
+
+    // A non-2xx response should be handled gracefully, not throw.
+    await expect(getTravelTimes(ORIGIN, parks)).resolves.toBeUndefined();
+    // No travel times should be merged for a failed request.
+    expect(mergeTravelTimes).not.toHaveBeenCalled();
   });
 
   it('does not throw on fetch failure — silently skips', async () => {

@@ -25,4 +25,12 @@ describe('haversineDistance()', () => {
     const dist = haversineDistance(38.0, -77.0, 39.0, -78.0);
     expect(dist).toBeGreaterThan(0);
   });
+
+  it('is symmetric — distance A→B equals distance B→A', () => {
+    // A coordinate-order bug (e.g. swapping lat/lon) would produce a different
+    // value in each direction because longitude spans are wider than latitude spans.
+    const ab = haversineDistance(34.0522, -118.2437, 40.7128, -74.006);
+    const ba = haversineDistance(40.7128, -74.006, 34.0522, -118.2437);
+    expect(ab).toBeCloseTo(ba, 5);
+  });
 });

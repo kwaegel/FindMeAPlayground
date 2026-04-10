@@ -85,8 +85,9 @@
     });
 
     // Long-press: start a timer on touchstart, cancel if the finger moves.
-    // longPressTimer is declared at component scope (above onDestroy) so that
-    // onDestroy can cancel it if the component is destroyed mid-press.
+    // longPressTimer is declared at component script scope (below this onMount
+    // block) so that onDestroy can cancel it if the component is destroyed
+    // mid-press. The hoisted let binding makes the assignment here safe.
     map.on('touchstart', (event) => {
       const { lat, lng } = event.latlng;
       longPressTimer = setTimeout(() => {
@@ -107,9 +108,11 @@
     // tests. The reactive block is the single source of truth for map state.
   });
 
-  // longPressTimer is module-scoped so it must be accessible in onDestroy.
-  // Declared up here to avoid a temporal dead zone if onDestroy runs before
-  // the touchstart handler has a chance to set it.
+  // Declared at component script scope (not module scope — the previous comment
+  // was incorrect) so both the touchstart handler (inside onMount) and the
+  // onDestroy cleanup can access it. JavaScript hoists the `let` declaration
+  // to the top of the component function, so the touchstart assignment on
+  // line 92 is safe even though the declaration appears below it here.
   let longPressTimer = null;
 
   onDestroy(() => {
@@ -142,7 +145,12 @@
   }
 </script>
 
-<div class="map-container" bind:this={mapEl}></div>
+<div
+  class="map-container"
+  bind:this={mapEl}
+  role="application"
+  aria-label="Map"
+></div>
 
 <style>
   .map-container {

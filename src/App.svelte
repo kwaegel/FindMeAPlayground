@@ -36,10 +36,13 @@
     const { origin, allResults, visibleCount } = $searchStore;
     if (origin && allResults.length > 0) {
       if (allResults !== prevResults) {
-        // New search — fetch travel times for all results up front.
+        // New search — fetch travel times for the initially-visible slice only.
+        // Fetching all results at once burns ORS quota for parks the user may
+        // never scroll to. The show-more branch below handles subsequent batches.
         prevResults = allResults;
         prevVisibleCount = visibleCount;
-        getTravelTimes(origin, allResults);
+        const initialBatch = getFilteredResults($searchStore).slice(0, visibleCount);
+        if (initialBatch.length > 0) getTravelTimes(origin, initialBatch);
       } else if (visibleCount > prevVisibleCount) {
         // Show more — fetch only the newly-exposed slice.
         const filtered = getFilteredResults($searchStore);

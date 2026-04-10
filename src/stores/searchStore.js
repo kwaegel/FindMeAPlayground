@@ -13,6 +13,12 @@ const MILES_TO_METERS = 1609.34;
 // Default number of results to show before "Show more" is clicked.
 const DEFAULT_VISIBLE_COUNT = 20;
 
+// Monotonically-increasing counter used to discard stale search results.
+// If the user triggers a new search while a previous one is in flight, only
+// the most recent search's results are written to the store. Without this
+// guard, a slow first request can overwrite faster, newer results.
+let currentSearchId = 0;
+
 /**
  * @typedef {Object} SearchState
  * @property {{ lat: number, lon: number, displayName: string } | null} origin
@@ -44,9 +50,12 @@ function defaultState() {
 export const searchStore = writable(defaultState());
 
 /**
- * Reset store to defaults. Exported for test isolation only.
+ * Reset store to defaults. Also resets the search ID counter so stale-result
+ * guards from a previous test don't bleed into the next. Exported for test
+ * isolation only.
  */
 export function _resetStore() {
+  currentSearchId = 0;
   searchStore.set(defaultState());
 }
 
@@ -61,10 +70,16 @@ export function _resetStore() {
  * @param {number} radiusMiles
  */
 async function runSearch(lat, lon, radiusMiles) {
+  // Capture this search's ID before the await so we can detect if a newer
+  // search was started while this one was in flight.
+  const searchId = ++currentSearchId;
   searchStore.update((s) => ({ ...s, loading: true, error: null }));
 
   try {
     const results = await searchParks(lat, lon, radiusMiles * MILES_TO_METERS);
+    // A newer search was triggered while this one was in flight — discard
+    // stale results to avoid overwriting the most recent state.
+    if (searchId !== currentSearchId) return;
     searchStore.update((s) => ({
       ...s,
       allResults: results,
@@ -75,6 +90,7 @@ async function runSearch(lat, lon, radiusMiles) {
       loading: false,
     }));
   } catch (err) {
+    if (searchId !== currentSearchId) return;
     searchStore.update((s) => ({
       ...s,
       loading: false,

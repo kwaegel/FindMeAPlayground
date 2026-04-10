@@ -236,8 +236,9 @@ describe('MapView', () => {
     const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
     expect(setOriginMock).not.toHaveBeenCalled();
 
-    // Advance past the long-press threshold.
-    vi.advanceTimersByTime(510);
+    // Advance past the long-press threshold. Use the async variant so any
+    // microtasks scheduled by the timer callback are flushed before the assertion.
+    await vi.advanceTimersByTimeAsync(510);
     expect(setOriginMock).toHaveBeenCalledWith(38.9, -77.04, 'Map location');
 
     vi.useRealTimers();
@@ -256,7 +257,7 @@ describe('MapView', () => {
 
     touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
     touchEndHandler(); // finger lifts before 500ms
-    vi.advanceTimersByTime(600);
+    await vi.advanceTimersByTimeAsync(600);
 
     const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
     expect(setOriginMock).not.toHaveBeenCalled();
