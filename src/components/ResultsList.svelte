@@ -3,35 +3,15 @@
   // Reads filteredResults from the store (allResults filtered by selectedAmenities,
   // sliced to visibleCount). "Show more" increments visibleCount without
   // re-querying Overpass.
-  import { Baby, Bath, Footprints, MapPin, Navigation, Clock } from 'lucide-svelte';
+  import { MapPin, Navigation, Clock } from 'lucide-svelte';
   import {
     searchStore,
     selectPark,
     incrementVisibleCount,
     getFilteredResults,
   } from '../stores/searchStore.js';
-
-  // Map amenity keys to Lucide icon components.
-  const AMENITY_ICONS = {
-    playground: Baby,
-    restroom: Bath,
-    'hiking-trail': Footprints,
-  };
-
-  /** Format seconds into a human-readable "N min" string. */
-  function formatMinutes(seconds) {
-    return `${Math.round(seconds / 60)} min`;
-  }
-
-  /** Format miles to 1 decimal place. */
-  function formatMiles(miles) {
-    return `${miles.toFixed(1)} mi`;
-  }
-
-  /** Build Google Maps directions URL for a park. */
-  function mapsUrl(park) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lon}`;
-  }
+  import { formatMiles, formatMinutes, mapsUrl } from '../utils/formatters.js';
+  import { AMENITY_ICON_MAP } from '../config/amenityIcons.js';
 
   // Derived visible results: apply amenity filter then slice to visibleCount.
   $: state = $searchStore;
@@ -79,8 +59,8 @@
 
               <div class="amenity-icons" aria-label="Amenities">
                 {#each park.amenities as amenity}
-                  {#if AMENITY_ICONS[amenity]}
-                    {@const Icon = AMENITY_ICONS[amenity]}
+                  {#if AMENITY_ICON_MAP[amenity]}
+                    {@const Icon = AMENITY_ICON_MAP[amenity]}
                     <span title={amenity} class="amenity-icon">
                       <Icon size={14} aria-hidden="true" />
                     </span>
@@ -105,7 +85,7 @@
     </ul>
 
     {#if hasMore}
-      <button class="show-more-btn" onclick={incrementVisibleCount}>
+      <button class="show-more-btn" type="button" onclick={incrementVisibleCount}>
         Show more ({filtered.length - state.visibleCount} remaining)
       </button>
     {/if}
@@ -149,7 +129,10 @@
   }
 
   .park-item:hover,
-  .park-item:focus {
+  .park-item:focus-visible {
+    /* :focus-visible only shows the outline for keyboard navigation, not mouse
+       clicks. This avoids the jarring focus ring that appears on mouse click
+       while still providing clear keyboard affordance. */
     background: #f9fafb;
     outline: 2px solid #2563eb;
     outline-offset: -2px;

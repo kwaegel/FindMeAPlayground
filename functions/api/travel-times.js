@@ -187,8 +187,17 @@ export async function onRequest(context) {
  */
 export async function onRequestOptions({ env }) {
   const allowedOrigin = env?.ALLOWED_ORIGIN ?? '*';
+  // Preflight responses use a tailored header set — not the shared headers()
+  // function. That function adds Content-Type: application/json which is
+  // meaningless on a 204 (no body), and is omitted here. Access-Control-Max-Age
+  // caches the preflight for 24 hours to avoid a round-trip on every request.
   return new Response(null, {
     status: 204,
-    headers: headers(allowedOrigin),
+    headers: {
+      'Access-Control-Allow-Origin': allowedOrigin,
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400',
+    },
   });
 }

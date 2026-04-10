@@ -1,12 +1,19 @@
 // Component tests for SearchBar.svelte.
 // Uses Svelte Testing Library. Store actions are mocked.
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+
+// Use a mutable state variable (like RadiusDropdown.test.js) so each test can
+// configure the initial store state before render without re-importing the mock.
+// This replaces the fragile `await import(...).mockImplementation(...)` pattern,
+// which ran after vi.clearAllMocks() had already wiped any prior implementation.
+let mockState = { loading: false, error: null, origin: null };
 
 vi.mock('../../src/stores/searchStore.js', () => ({
   searchStore: {
     subscribe: vi.fn((cb) => {
-      cb({ loading: false, error: null, origin: null });
+      cb(mockState);
       return () => {};
     }),
     // SearchBar calls searchStore.update() to clear the store error on GPS click
@@ -21,12 +28,13 @@ vi.mock('../../src/services/nominatim.js', () => ({
 }));
 
 import SearchBar from '../../src/components/SearchBar.svelte';
-import { setOrigin } from '../../src/stores/searchStore.js';
+import { setOrigin, searchStore } from '../../src/stores/searchStore.js';
 import { geocode } from '../../src/services/nominatim.js';
 
 describe('SearchBar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockState = { loading: false, error: null, origin: null };
   });
 
   afterEach(() => {
@@ -114,22 +122,14 @@ describe('SearchBar', () => {
   });
 
   it('displays an error message from the store', async () => {
-    // Re-mock the store to return an error state.
-    const { searchStore: storeMock } = await import('../../src/stores/searchStore.js');
-    storeMock.subscribe.mockImplementation((cb) => {
-      cb({ loading: false, error: 'Address not found', origin: null });
-      return () => {};
-    });
-
+    mockState = { loading: false, error: 'Address not found', origin: null };
     render(SearchBar);
-
     expect(screen.getByText(/address not found/i)).toBeInTheDocument();
   });
 
   it('GPS click clears any prior store error', async () => {
     // If the user gets an address-search error then clicks GPS, the stale error
     // should be cleared before the GPS result arrives (not linger on screen).
-    const { searchStore: storeMock } = await import('../../src/stores/searchStore.js');
     vi.stubGlobal('navigator', {
       ...navigator,
       geolocation: { getCurrentPosition: vi.fn() }, // don't resolve — just checking the clear
@@ -139,23 +139,41 @@ describe('SearchBar', () => {
     await fireEvent.click(screen.getByRole('button', { name: /gps|location|my location/i }));
 
     // The component calls searchStore.update(fn) to clear the error.
-    expect(storeMock.update).toHaveBeenCalled();
-    const updateFn = storeMock.update.mock.calls[0][0];
+    expect(searchStore.update).toHaveBeenCalled();
+    const updateFn = searchStore.update.mock.calls[0][0];
     const result = updateFn({ loading: false, error: 'Previous error', origin: null });
     expect(result.error).toBeNull();
   });
 
   it('shows a loading indicator and disables buttons while loading', async () => {
-    const { searchStore: storeMock } = await import('../../src/stores/searchStore.js');
-    storeMock.subscribe.mockImplementation((cb) => {
-      cb({ loading: true, error: null, origin: null });
-      return () => {};
-    });
-
+    mockState = { loading: true, error: null, origin: null };
     render(SearchBar);
 
     expect(screen.getByText(/searching/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /search/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /gps|location/i })).toBeDisabled();
+  });
+
+  it('shows a loading indicator and disables buttons while geocoding', async () => {
+    // The store.loading flag only becomes true once the Overpass query starts,
+    // not during the geocode() call itself. The component should show feedback
+    // during the geocoding phase too so the user doesn't press Search again.
+    let resolveGeocode;
+    geocode.mockImplementation(() => new Promise((resolve) => { resolveGeocode = resolve; }));
+
+    render(SearchBar);
+    const input = screen.getByRole('textbox');
+    await fireEvent.input(input, { target: { value: 'Arlington, VA' } });
+    await fireEvent.click(screen.getByRole('button', { name: /search/i }));
+
+    // While geocode() is pending, the button should be disabled.
+    expect(screen.getByRole('button', { name: /search/i })).toBeDisabled();
+    expect(screen.getByText(/searching/i)).toBeInTheDocument();
+
+    // Resolve geocode — loading state should clear.
+    resolveGeocode({ lat: 38.895, lon: -77.036, displayName: 'Arlington, VA' });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /search/i })).not.toBeDisabled();
+    });
   });
 });

@@ -8,7 +8,9 @@ describe('haversineDistance()', () => {
   });
 
   it('calculates approximately correct distance between two known points', () => {
-    // Arlington, VA to Washington DC Monument (~3.7 miles)
+    // Two points ~0.4 miles apart in Arlington, VA — the assertion bounds
+    // match the actual coordinate separation, not the comment that was here
+    // before which erroneously said "3.7 miles".
     const dist = haversineDistance(38.895, -77.036, 38.889, -77.035);
     expect(dist).toBeGreaterThan(0);
     expect(dist).toBeLessThan(1); // ~0.4 miles apart

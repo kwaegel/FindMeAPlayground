@@ -3,28 +3,40 @@
   // Conditionally rendered when $searchStore.selectedPark is non-null.
   // Closes on: close button click, overlay background click, Escape key.
   import { onMount, onDestroy, tick } from 'svelte';
-  import { Baby, Bath, Footprints, X, MapPin, Clock, Navigation } from 'lucide-svelte';
+  import { X, MapPin, Clock, Navigation } from 'lucide-svelte';
   import { searchStore, clearSelectedPark } from '../stores/searchStore.js';
+  import { AMENITIES } from '../config/amenities.js';
+  import { AMENITY_ICON_MAP } from '../config/amenityIcons.js';
+  import { formatMiles, formatMinutes, mapsUrl } from '../utils/formatters.js';
 
   // Bound to the close button so we can move focus there when the modal opens.
   let closeBtn;
 
-  const AMENITY_ICONS = {
-    playground: { Icon: Baby, label: 'Playground' },
-    restroom: { Icon: Bath, label: 'Restroom' },
-    'hiking-trail': { Icon: Footprints, label: 'Hiking Trail' },
-  };
+  /**
+   * Trap Tab/Shift+Tab focus within the modal content while the modal is open.
+   * WCAG 2.1 dialog pattern requires that Tab cycles within the dialog so that
+   * keyboard users cannot accidentally navigate behind the overlay.
+   *
+   * @param {KeyboardEvent} event
+   */
+  function trapFocus(event) {
+    if (event.key !== 'Tab') return;
 
-  function formatMiles(miles) {
-    return `${miles.toFixed(1)} mi`;
-  }
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll('a[href], button:not([disabled])')
+    );
+    if (focusable.length === 0) return;
 
-  function formatMinutes(seconds) {
-    return `${Math.round(seconds / 60)} min`;
-  }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
 
-  function mapsUrl(park) {
-    return `https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lon}`;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   }
 
   function handleOverlayClick(event) {
@@ -57,12 +69,12 @@
 
 {#if $searchStore.selectedPark}
   {@const park = $searchStore.selectedPark}
-  {@const travelSecs = $searchStore.travelTimes?.get(park.id)}
+  {@const travelSecs = $searchStore.travelTimes.get(park.id)}
 
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-overlay" onclick={handleOverlayClick} role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1">
-    <div class="modal-content">
+    <div class="modal-content" onkeydown={trapFocus}>
       <div class="modal-header">
         <h2 id="modal-title" class="modal-title">{park.name}</h2>
         <button class="close-btn" onclick={clearSelectedPark} aria-label="Close" bind:this={closeBtn}>
@@ -86,11 +98,12 @@
         {#if park.amenities.length > 0}
           <div class="amenities">
             {#each park.amenities as amenity}
-              {#if AMENITY_ICONS[amenity]}
-                {@const { Icon, label } = AMENITY_ICONS[amenity]}
+              {#if AMENITY_ICON_MAP[amenity]}
+                {@const Icon = AMENITY_ICON_MAP[amenity]}
+                {@const config = AMENITIES.find((a) => a.key === amenity)}
                 <span class="amenity-badge">
                   <Icon size={16} aria-hidden="true" />
-                  {label}
+                  {config?.label ?? amenity}
                 </span>
               {/if}
             {/each}

@@ -228,4 +228,37 @@ describe('searchParks()', () => {
       'Park search service unavailable.'
     );
   });
+
+  it('deduplicates elements that appear under both leisure=park and leisure=playground', async () => {
+    // An element tagged both leisure=park and leisure=playground matches both
+    // query arms and appears twice in the raw Overpass response. The parser
+    // must deduplicate by ID so it only appears once in results.
+    const responseWithDuplicate = {
+      elements: [
+        { type: 'node', id: 42, lat: 38.89, lon: -77.03, tags: { name: 'Dual Park', leisure: 'park' } },
+        { type: 'node', id: 42, lat: 38.89, lon: -77.03, tags: { name: 'Dual Park', leisure: 'playground' } },
+      ],
+    };
+    mockFetch(responseWithDuplicate);
+    const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe('node/42');
+  });
+
+  it('skips relation elements without a center property', async () => {
+    // Overpass sometimes omits the center object for relation elements. Rather
+    // than crashing or inserting a park at (0, 0), parseElement returns null
+    // and the element is filtered out.
+    const responseWithBrokenRelation = {
+      elements: [
+        { type: 'node', id: 1, lat: 38.89, lon: -77.03, tags: { name: 'Valid Park', leisure: 'park' } },
+        { type: 'relation', id: 99, tags: { name: 'Broken Relation', leisure: 'park' } },
+        // No center, no lat/lon — should be silently skipped.
+      ],
+    };
+    mockFetch(responseWithBrokenRelation);
+    const results = await searchParks(ORIGIN_LAT, ORIGIN_LON, RADIUS_M);
+    expect(results.length).toBe(1);
+    expect(results[0].id).toBe('node/1');
+  });
 });

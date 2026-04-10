@@ -8,6 +8,10 @@
 
   let inputValue = $state('');
   let gpsError = $state('');
+  // True while the geocode() call is in flight (before the Overpass search
+  // starts). The store's loading flag only becomes true once Overpass begins,
+  // so without this there is a 1-2s window where the user sees no feedback.
+  let geocoding = $state(false);
 
   // Track the last origin we synced to the input so we can detect real changes
   // (not just any store update). The `inputValue === ''` guard was too narrow —
@@ -26,6 +30,7 @@
     if (!query) return;
 
     gpsError = '';
+    geocoding = true;
     try {
       const result = await geocode(query);
       await setOrigin(result.lat, result.lon, result.displayName);
@@ -36,6 +41,8 @@
       // Geocoding errors (bad address, service down) are not caught by setOrigin —
       // surface them via the store error channel so the existing error UI shows them.
       searchStore.update((s) => ({ ...s, error: err.message }));
+    } finally {
+      geocoding = false;
     }
   }
 
@@ -77,16 +84,16 @@
       aria-label="Address search"
       class="address-input"
     />
-    <button onclick={handleSearch} class="btn-search" aria-label="Search" disabled={$searchStore.loading}>
+    <button onclick={handleSearch} class="btn-search" aria-label="Search" disabled={geocoding || $searchStore.loading}>
       <Search size={18} aria-hidden="true" />
       Search
     </button>
-    <button onclick={handleGps} class="btn-gps" aria-label="Use my GPS location" disabled={$searchStore.loading}>
+    <button onclick={handleGps} class="btn-gps" aria-label="Use my GPS location" disabled={geocoding || $searchStore.loading}>
       <Locate size={18} aria-hidden="true" />
     </button>
   </div>
 
-  {#if $searchStore.loading}
+  {#if geocoding || $searchStore.loading}
     <p class="status-message">Searching…</p>
   {/if}
 

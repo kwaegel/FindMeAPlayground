@@ -42,9 +42,16 @@ function mockFetchNetworkError() {
 
 describe('geocode()', () => {
   beforeEach(() => {
-    // Reset the rate-limit cooldown before each test so tests are independent.
-    _resetRateLimit();
     vi.useFakeTimers();
+    // Pin the fake clock to a time > RATE_LIMIT_MS (1000ms) past epoch so
+    // the very first geocode() call in each test sees elapsed >> limit and
+    // fires immediately (takes the else branch, no sleep). Must be called
+    // after vi.useFakeTimers() — setSystemTime only affects the fake clock.
+    vi.setSystemTime(2000);
+    // Reset the rate-limit cursor after pinning time. With lastRequestTime=0
+    // and Date.now()=2000, elapsed=2000 >= 1000 for the first call per test,
+    // giving us deterministic immediate execution.
+    _resetRateLimit();
   });
 
   afterEach(() => {

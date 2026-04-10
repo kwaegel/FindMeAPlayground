@@ -246,4 +246,50 @@ describe('searchStore', () => {
     expect(state.travelTimes.get('way/1')).toBe(300);
     expect(state.travelTimes.get('way/2')).toBe(600);
   });
+
+  // --- Stale-search guard ---
+
+  it('discards results from a superseded search', async () => {
+    // Simulate two overlapping searches where the first resolves after the second.
+    // The guard increments a search ID on each call; results whose ID no longer
+    // matches the current ID are silently dropped.
+    let resolveFirst;
+    const FIRST_PARKS = [{ id: 'way/old', name: 'Old Park', lat: 38.9, lon: -77.04, amenities: [], distanceMiles: 1, travelTimeSeconds: null, osmTags: {} }];
+    const SECOND_PARKS = [{ id: 'way/new', name: 'New Park', lat: 40.71, lon: -74.01, amenities: [], distanceMiles: 2, travelTimeSeconds: null, osmTags: {} }];
+
+    searchParks.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveFirst = resolve; })
+    );
+    searchParks.mockResolvedValueOnce(SECOND_PARKS);
+
+    // Fire first search (stays pending).
+    const p1 = setOrigin(38.9, -77.04, 'Location A');
+    // Fire second search while first is still in flight.
+    const p2 = setOrigin(40.71, -74.01, 'Location B');
+
+    // Resolve second (already resolved), then first (stale).
+    await p2;
+    resolveFirst(FIRST_PARKS);
+    await p1;
+
+    // Only the second search's results should be in the store.
+    const { allResults } = get(searchStore);
+    expect(allResults.every((p) => p.id !== 'way/old')).toBe(true);
+    expect(allResults.some((p) => p.id === 'way/new')).toBe(true);
+  });
+
+  it('clears travelTimes when new search results arrive', async () => {
+    // Travel-time park IDs are location-specific; stale IDs from a previous
+    // search must not persist after a new search fires.
+    searchParks.mockResolvedValue(PARKS);
+    await setOrigin(ORIGIN.lat, ORIGIN.lon, ORIGIN.displayName);
+    mergeTravelTimes(new Map([['way/1', 300], ['way/2', 600]]));
+    expect(get(searchStore).travelTimes.size).toBe(2);
+
+    // Trigger a new search — travelTimes must be reset.
+    searchParks.mockResolvedValue(PARKS);
+    await setOrigin(40.71, -74.01, 'New York, NY');
+
+    expect(get(searchStore).travelTimes.size).toBe(0);
+  });
 });

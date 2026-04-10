@@ -220,48 +220,54 @@ describe('MapView', () => {
     expect(setOriginMock).toHaveBeenCalledWith(40.71, -74.01, 'Map location');
   });
 
-  it('long-press (touchstart held 500ms) on the map calls setOrigin with "Map location"', async () => {
-    vi.useFakeTimers();
+  // Long-press tests use fake timers. Wrapping them in a nested describe with
+  // beforeEach/afterEach ensures timers are restored even if a test throws —
+  // per-test vi.useRealTimers() calls are skipped on failure and contaminate
+  // subsequent tests.
+  describe('long-press', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
 
-    render(MapView);
-    await waitFor(() => expect(L.map).toHaveBeenCalled());
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-    const touchStartCall = mockMap.on.mock.calls.find(([event]) => event === 'touchstart');
-    expect(touchStartCall).toBeDefined();
-    const touchStartHandler = touchStartCall[1];
+    it('touchstart held 500ms calls setOrigin with "Map location"', async () => {
+      render(MapView);
+      await waitFor(() => expect(L.map).toHaveBeenCalled());
 
-    // Start the press — the 500ms timer should not have fired yet.
-    touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
+      const touchStartCall = mockMap.on.mock.calls.find(([event]) => event === 'touchstart');
+      expect(touchStartCall).toBeDefined();
+      const touchStartHandler = touchStartCall[1];
 
-    const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
-    expect(setOriginMock).not.toHaveBeenCalled();
+      // Start the press — the 500ms timer should not have fired yet.
+      touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
 
-    // Advance past the long-press threshold. Use the async variant so any
-    // microtasks scheduled by the timer callback are flushed before the assertion.
-    await vi.advanceTimersByTimeAsync(510);
-    expect(setOriginMock).toHaveBeenCalledWith(38.9, -77.04, 'Map location');
+      const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
+      expect(setOriginMock).not.toHaveBeenCalled();
 
-    vi.useRealTimers();
-  });
+      // Advance past the long-press threshold. Use the async variant so any
+      // microtasks scheduled by the timer callback are flushed before the assertion.
+      await vi.advanceTimersByTimeAsync(510);
+      expect(setOriginMock).toHaveBeenCalledWith(38.9, -77.04, 'Map location');
+    });
 
-  it('cancels long-press if finger lifts before 500ms', async () => {
-    vi.useFakeTimers();
+    it('cancels if finger lifts before 500ms', async () => {
+      render(MapView);
+      await waitFor(() => expect(L.map).toHaveBeenCalled());
 
-    render(MapView);
-    await waitFor(() => expect(L.map).toHaveBeenCalled());
+      const touchStartCall = mockMap.on.mock.calls.find(([event]) => event === 'touchstart');
+      const touchEndCall = mockMap.on.mock.calls.find(([event]) => event === 'touchend');
+      const touchStartHandler = touchStartCall[1];
+      const touchEndHandler = touchEndCall[1];
 
-    const touchStartCall = mockMap.on.mock.calls.find(([event]) => event === 'touchstart');
-    const touchEndCall = mockMap.on.mock.calls.find(([event]) => event === 'touchend');
-    const touchStartHandler = touchStartCall[1];
-    const touchEndHandler = touchEndCall[1];
+      touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
+      touchEndHandler(); // finger lifts before 500ms
+      await vi.advanceTimersByTimeAsync(600);
 
-    touchStartHandler({ latlng: { lat: 38.9, lng: -77.04 } });
-    touchEndHandler(); // finger lifts before 500ms
-    await vi.advanceTimersByTimeAsync(600);
-
-    const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
-    expect(setOriginMock).not.toHaveBeenCalled();
-
-    vi.useRealTimers();
+      const { setOrigin: setOriginMock } = await import('../../src/stores/searchStore.js');
+      expect(setOriginMock).not.toHaveBeenCalled();
+    });
   });
 });

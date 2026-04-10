@@ -113,4 +113,14 @@ describe('ParkDetailModal', () => {
     await fireEvent.click(dialog);
     expect(clearSelectedPark).toHaveBeenCalled();
   });
+
+  it('does NOT close when modal content area is clicked', async () => {
+    // The handleOverlayClick guard (event.target === event.currentTarget) must
+    // prevent clicks on the inner content from bubbling up and closing the modal.
+    mockState = { selectedPark: PARK, travelTimes: new Map() };
+    const { container } = render(ParkDetailModal);
+    const modalContent = container.querySelector('.modal-content');
+    await fireEvent.click(modalContent);
+    expect(clearSelectedPark).not.toHaveBeenCalled();
+  });
 });

@@ -167,4 +167,23 @@ describe('ResultsList', () => {
     render(ResultsList);
     expect(screen.queryByText(/no parks found/i)).not.toBeInTheDocument();
   });
+
+  it('only renders visibleCount items even when allResults has more', () => {
+    // Pagination is client-side: allResults holds all fetched parks but the
+    // component renders only the first visibleCount. Without this test, a bug
+    // that renders all results would not be caught by the "show more" button tests.
+    const manyParks = Array.from({ length: 25 }, (_, i) => ({
+      id: `way/${i}`,
+      name: `Park ${i}`,
+      lat: 38.9 + i * 0.01,
+      lon: -77.04,
+      amenities: [],
+      distanceMiles: i * 0.5,
+      travelTimeSeconds: null,
+      osmTags: {},
+    }));
+    mockState = { ...mockState, allResults: manyParks, visibleCount: 20, travelTimes: new Map() };
+    render(ResultsList);
+    expect(screen.getAllByRole('listitem').length).toBe(20);
+  });
 });

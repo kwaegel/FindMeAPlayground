@@ -54,6 +54,12 @@
       } else {
         // visibleCount dropped (filter reset) — sync cursor down so the next
         // show-more fetches from the correct offset.
+        //
+        // Design tradeoff: we intentionally do NOT re-fetch travel times when
+        // a filter change changes which parks are visible. Parks that enter
+        // the visible set after a filter toggle will show no travel time until
+        // the next show-more or new search. This avoids burning ORS quota on
+        // filter changes, which can fire rapidly as the user toggles amenities.
         prevVisibleCount = visibleCount;
       }
     }

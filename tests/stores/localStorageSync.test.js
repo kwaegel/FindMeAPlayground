@@ -88,6 +88,24 @@ describe('localStorageSync', () => {
     await expect(init()).resolves.not.toThrow();
   });
 
+  it('strips unrecognized amenity keys from stored selectedAmenities', async () => {
+    // A key from a previous app version (or manually edited storage) must not
+    // persist into the store — it would show as a filter with no matching parks
+    // and silently hide all results. Only VALID_AMENITY_KEYS pass through.
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        radiusMiles: 5,
+        selectedAmenities: ['playground', 'unknown-future-amenity', 'restroom'],
+      })
+    );
+
+    await init();
+
+    // Only the known keys should have been passed to setFilters.
+    expect(setFilters).toHaveBeenCalledWith(['playground', 'restroom']);
+  });
+
   // --- Persist on change ---
 
   it('writes state to localStorage after store changes (debounced at 500ms)', async () => {

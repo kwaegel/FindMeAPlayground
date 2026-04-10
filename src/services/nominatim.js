@@ -58,6 +58,12 @@ export async function geocode(query) {
   url.searchParams.set('countrycodes', 'us');
   url.searchParams.set('limit', '1');
 
+  // Note: Nominatim's usage policy requires a User-Agent header identifying
+  // the application. However, User-Agent is a "forbidden" header name in the
+  // Fetch API for cross-origin browser requests and cannot be set manually.
+  // The browser sends its own User-Agent automatically. If Nominatim starts
+  // blocking browser SPAs, the solution is to proxy Nominatim requests through
+  // a Cloudflare Worker (where server-side fetch can set any header).
   let data;
   try {
     const response = await fetch(url.toString());

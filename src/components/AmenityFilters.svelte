@@ -2,12 +2,9 @@
   // AmenityFilters — toggle buttons for playground, restroom, hiking-trail filters.
   // The button set is driven entirely by the AMENITIES config; adding a new
   // amenity there automatically adds a filter button here.
-  import { Baby, Bath, Footprints } from 'lucide-svelte';
   import { searchStore, setFilters } from '../stores/searchStore.js';
   import { AMENITIES } from '../config/amenities.js';
-
-  // Map amenity keys → Lucide icon components (matches ResultsList icon map).
-  const ICON_MAP = { playground: Baby, restroom: Bath, 'hiking-trail': Footprints };
+  import { AMENITY_ICON_MAP } from '../config/amenityIcons.js';
 
   function toggle(key) {
     const current = $searchStore.selectedAmenities;
@@ -20,7 +17,7 @@
 
 <div class="amenity-filters" role="group" aria-label="Filter by amenity">
   {#each AMENITIES as amenity}
-    {@const Icon = ICON_MAP[amenity.key]}
+    {@const Icon = AMENITY_ICON_MAP[amenity.key]}
     <button
       class="filter-btn"
       class:active={$searchStore.selectedAmenities.includes(amenity.key)}
