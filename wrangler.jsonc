@@ -1,0 +1,12 @@
+{
+  // Cloudflare Pages project configuration.
+  // Used by `wrangler pages dev` for local development and `wrangler pages deploy`
+  // for CI/CD. The `functions/` directory is automatically picked up by Pages
+  // deployments — no explicit entry-point needed for the ORS proxy function.
+  "name": "find-me-a-playground",
+  "compatibility_date": "2024-01-01",
+
+  // Tells wrangler where the Vite build output lives, so `wrangler pages deploy`
+  // doesn't need the directory passed as a CLI argument.
+  "pages_build_output_dir": "./dist"
+}
