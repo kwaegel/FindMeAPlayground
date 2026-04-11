@@ -51,9 +51,11 @@ function parseElement(element, originLat, originLon) {
   const lon = element.center ? element.center.lon : element.lon;
 
   // Guard: skip elements where Overpass didn't provide resolvable coordinates.
-  // isFinite rejects null, undefined, NaN, Infinity, and non-numeric strings —
-  // a tighter check than == null which only catches null/undefined.
-  if (!isFinite(lat) || !isFinite(lon)) return null;
+  // Number.isFinite() is used deliberately — unlike the global isFinite(), it
+  // does NOT coerce its argument. isFinite(null) returns true (null → 0) but
+  // Number.isFinite(null) returns false. This correctly rejects null, undefined,
+  // NaN, Infinity, and non-numeric strings without any type coercion surprises.
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
 
   return {
     id: `${type}/${id}`,
