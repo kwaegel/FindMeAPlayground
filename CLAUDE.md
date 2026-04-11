@@ -42,7 +42,7 @@ tests/               # Mirrors src/ structure
 - `npm run dev` — Start Vite dev server with hot reload
 - `npm run build` — Production build to `dist/`
 - `npm test` — Run Vitest
-- `wrangler pages dev` — Local dev with Worker functions (simulates Cloudflare)
+- `wrangler dev` — Local dev with Worker + assets (simulates Cloudflare)
 
 ## Architecture Decisions
 

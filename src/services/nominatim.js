@@ -1,0 +1,91 @@
+// Nominatim geocoding service.
+// Converts an address string to {lat, lon, displayName} using the public
+// Nominatim API. Enforces the 1 request/second rate limit required by the
+// Nominatim usage policy.
+
+const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org/search';
+
+// Minimum milliseconds between Nominatim requests (usage policy: 1 req/sec).
+const RATE_LIMIT_MS = 1000;
+
+// Timestamp of the last request sent. Used to enforce the cooldown.
+let lastRequestTime = 0;
+
+/**
+ * Reset the rate-limit state. Exported for test isolation only — do not call
+ * in production code.
+ */
+export function _resetRateLimit() {
+  lastRequestTime = 0;
+}
+
+/**
+ * Wait until the rate-limit cooldown has elapsed since the last request.
+ * Advances `lastRequestTime` BEFORE sleeping so that concurrent callers see
+ * the slot as taken and schedule themselves further into the future (queue
+ * semantics). Without this, two simultaneous calls at t=0 both see elapsed=0
+ * and both fire at t=1000, violating the rate limit.
+ *
+ * @returns {Promise<void>}
+ */
+async function waitForRateLimit() {
+  const now = Date.now();
+  const elapsed = now - lastRequestTime;
+  if (elapsed < RATE_LIMIT_MS) {
+    // Claim the next available slot by advancing the cursor first.
+    lastRequestTime += RATE_LIMIT_MS;
+    await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS - elapsed));
+  } else {
+    lastRequestTime = now;
+  }
+}
+
+/**
+ * Geocode a US address using Nominatim.
+ *
+ * @param {string} query - The address string to look up.
+ * @returns {Promise<{lat: number, lon: number, displayName: string}>}
+ * @throws {Error} "Address not found" if Nominatim returns no results.
+ * @throws {Error} "Geocoding service unavailable" on network failure.
+ */
+export async function geocode(query) {
+  // Respect the 1 req/sec rate limit before making the request.
+  await waitForRateLimit();
+
+  const url = new URL(NOMINATIM_BASE);
+  url.searchParams.set('q', query);
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('countrycodes', 'us');
+  url.searchParams.set('limit', '1');
+
+  // Note: Nominatim's usage policy requires a User-Agent header identifying
+  // the application. However, User-Agent is a "forbidden" header name in the
+  // Fetch API for cross-origin browser requests and cannot be set manually.
+  // The browser sends its own User-Agent automatically. If Nominatim starts
+  // blocking browser SPAs, the solution is to proxy Nominatim requests through
+  // a Cloudflare Worker (where server-side fetch can set any header).
+  let data;
+  try {
+    const response = await fetch(url.toString());
+    // A non-2xx status (e.g. 429 rate-limited by server, 500 server error)
+    // should surface as "unavailable" rather than silently falling through to
+    // the "Address not found" branch if the body happens to be empty JSON.
+    if (!response.ok) {
+      throw new Error(`Nominatim HTTP ${response.status}`);
+    }
+    data = await response.json();
+  } catch {
+    throw new Error('Geocoding service unavailable');
+  }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error('Address not found');
+  }
+
+  const [result] = data;
+  return {
+    lat: parseFloat(result.lat),
+    lon: parseFloat(result.lon),
+    displayName: result.display_name,
+  };
+}
