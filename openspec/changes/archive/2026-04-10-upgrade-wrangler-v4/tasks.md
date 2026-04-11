@@ -19,4 +19,4 @@
 
 ## 4. Commit
 
-- [ ] 4.1 Commit `package.json` and `package-lock.json` with message referencing the security fix
+- [x] 4.1 Commit `package.json` and `package-lock.json` with message referencing the security fix
