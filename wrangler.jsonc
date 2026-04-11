@@ -1,12 +1,16 @@
 {
-  // Cloudflare Pages project configuration.
-  // Used by `wrangler pages dev` for local development and `wrangler pages deploy`
-  // for CI/CD. The `functions/` directory is automatically picked up by Pages
-  // deployments — no explicit entry-point needed for the ORS proxy function.
+  // Cloudflare Worker configuration for FindMeAPlayground.
+  // Deploys src/worker.js as the Worker entry point alongside the pre-built
+  // Vite static assets in dist/. The Worker routes /api/travel-times to the
+  // ORS proxy and serves assets for everything else.
   "name": "find-me-a-playground",
   "compatibility_date": "2024-01-01",
 
-  // Tells wrangler where the Vite build output lives, so `wrangler pages deploy`
-  // doesn't need the directory passed as a CLI argument.
-  "pages_build_output_dir": "./dist"
+  // Worker entry point — handles API routing and falls back to ASSETS.
+  "main": "src/worker.js",
+
+  // Static assets served directly from the CDN for all non-API routes.
+  "assets": {
+    "directory": "./dist"
+  }
 }

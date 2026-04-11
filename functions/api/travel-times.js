@@ -1,10 +1,12 @@
-// Cloudflare Pages Function: POST /api/travel-times
+// ORS travel-time proxy handler: POST /api/travel-times
 //
 // Proxies travel-time matrix requests to OpenRouteService, keeping the ORS
 // API key server-side (stored as the Worker secret ORS_API_KEY).
 //
-// Named export `onRequestPost` means Cloudflare Pages only routes POST
-// requests to this handler; other methods automatically receive 405.
+// Originally a Cloudflare Pages Function; now imported by src/worker.js which
+// handles routing. The named exports (onRequest, onRequestPost, onRequestOptions)
+// use Pages-Function-style context objects { request, env } and are reused
+// directly — no signature change needed for the Worker model.
 
 const ORS_MATRIX_URL = 'https://api.openrouteservice.org/v2/matrix/driving-car';
 
