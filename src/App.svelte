@@ -84,6 +84,12 @@
     <!-- Mobile-only toggle: switch between map and list views.
          On desktop this button is hidden; the sidebar is always visible. -->
     <div class="view-toggle">
+      <!-- Dynamic label communicates state ("View Map" = list is currently shown,
+           "View List" = map is currently shown). aria-pressed is intentionally
+           omitted — it conflicts with a changing label: "View Map, pressed"
+           would tell screen readers the opposite of the current view. The
+           label change alone is the correct pattern here (action button, not
+           toggle button). -->
       <button
         class="toggle-btn"
         onclick={() => { showList = !showList; }}

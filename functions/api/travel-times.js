@@ -86,17 +86,18 @@ export async function onRequestPost({ request, env }) {
     );
   }
 
-  // Validate origin coordinates.
-  if (!Array.isArray(origin) || origin.length < 2 || !isNumeric(origin[0]) || !isNumeric(origin[1])) {
+  // Validate origin coordinates. Require exactly 2 elements — an altitude
+  // component would pass < 2 but silently corrupt ORS's [lon, lat] expectation.
+  if (!Array.isArray(origin) || origin.length !== 2 || !isNumeric(origin[0]) || !isNumeric(origin[1])) {
     return new Response(JSON.stringify({ error: 'origin must be [longitude, latitude] numbers' }), {
       status: 400,
       headers: headers(allowedOrigin),
     });
   }
 
-  // Validate each destination.
+  // Validate each destination with the same strict length check.
   for (const dest of destinations) {
-    if (!Array.isArray(dest) || dest.length < 2 || !isNumeric(dest[0]) || !isNumeric(dest[1])) {
+    if (!Array.isArray(dest) || dest.length !== 2 || !isNumeric(dest[0]) || !isNumeric(dest[1])) {
       return new Response(
         JSON.stringify({ error: 'Each destination must be [longitude, latitude] numbers' }),
         { status: 400, headers: headers(allowedOrigin) }
@@ -147,7 +148,20 @@ export async function onRequestPost({ request, env }) {
   if (!Array.isArray(timesRow)) {
     console.warn('[travel-times] Unexpected ORS response shape:', JSON.stringify(orsData));
   }
-  const times = Array.isArray(timesRow) ? timesRow : [];
+  // Normalize unreachable destinations. ORS returns null for unreachable
+  // destinations and may return a very large sentinel value (e.g. 3.4e+38)
+  // for certain route profiles. Map null/invalid/negative/excessive values to
+  // null so the client can treat them uniformly.
+  // 86400s (24 hours) is a practical ceiling — no park within a 15-mile
+  // radius should take longer. Negative durations (ORS contract violation)
+  // are rejected but t === 0 is allowed: a co-located park would get 0s from
+  // ORS and formatMinutes() renders it as "1 min", which is correct UX.
+  const MAX_REASONABLE_SECONDS = 86400;
+  const times = Array.isArray(timesRow)
+    ? timesRow.map((t) =>
+        t === null || !isNumeric(t) || t < 0 || t > MAX_REASONABLE_SECONDS ? null : t
+      )
+    : [];
 
   return new Response(JSON.stringify({ times }), {
     status: 200,

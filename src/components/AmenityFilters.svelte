@@ -23,7 +23,7 @@
       class:active={$searchStore.selectedAmenities.includes(amenity.key)}
       onclick={() => toggle(amenity.key)}
       type="button"
-      aria-pressed={$searchStore.selectedAmenities.includes(amenity.key)}
+      aria-pressed={$searchStore.selectedAmenities.includes(amenity.key) ? 'true' : 'false'}
     >
       {#if Icon}
         <Icon size={13} aria-hidden="true" />
@@ -53,6 +53,11 @@
 
   .filter-btn:hover {
     background: #f3f4f6;
+  }
+
+  .filter-btn:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 2px;
   }
 
   .filter-btn.active {

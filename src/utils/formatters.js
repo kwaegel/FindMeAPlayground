@@ -14,11 +14,13 @@ export function formatMiles(miles) {
 
 /**
  * Format a travel time in seconds to the nearest whole minute.
+ * Returns a minimum of "1 min" — sub-30-second values would display as
+ * "0 min" which is confusing since the park is not literally zero minutes away.
  * @param {number} seconds
  * @returns {string} e.g. "12 min"
  */
 export function formatMinutes(seconds) {
-  return `${Math.round(seconds / 60)} min`;
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
 }
 
 /**

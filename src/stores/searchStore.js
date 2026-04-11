@@ -87,6 +87,10 @@ async function runSearch(lat, lon, radiusMiles) {
       // Clear travel times from the previous search — park IDs are
       // location-specific, so stale entries must not bleed into new results.
       travelTimes: new Map(),
+      // Clear the selected park — its distanceMiles was calculated from the
+      // old origin and would be wrong in the new result set. The user can
+      // re-select from the updated list.
+      selectedPark: null,
       loading: false,
     }));
   } catch (err) {
@@ -95,6 +99,10 @@ async function runSearch(lat, lon, radiusMiles) {
       ...s,
       loading: false,
       error: err.message,
+      // Clear the selected park on error for the same reason as on success —
+      // its distanceMiles is anchored to the old origin and would mislead the
+      // user if the modal stayed open after a failed re-search.
+      selectedPark: null,
     }));
   }
 }

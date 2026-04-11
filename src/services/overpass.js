@@ -27,6 +27,7 @@ function buildQuery(lat, lon, radiusMeters) {
   relation["leisure"="park"]${around};
   node["leisure"="playground"]${around};
   way["leisure"="playground"]${around};
+  relation["leisure"="playground"]${around};
 );
 out center tags;
   `.trim();
@@ -102,7 +103,9 @@ export async function searchParks(lat, lon, radiusMeters) {
   // then deduplicate by id. An element can match both query arms (e.g. a node
   // tagged both leisure=park and leisure=playground) and appear twice.
   const seen = new Set();
-  const results = (data.elements ?? [])
+  // Optional chaining guards against a null/primitive JSON body from a
+  // misbehaving Overpass instance (valid JSON but not an object with .elements).
+  const results = (data?.elements ?? [])
     .map((el) => parseElement(el, lat, lon))
     .filter((r) => {
       if (r === null) return false;

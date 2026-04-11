@@ -43,15 +43,14 @@
   }
 
   // Place a marker for each visible park and wire up click → selectPark.
+  // No .bindPopup() — the detail modal is the intended interaction per SPEC.md.
+  // Adding both a popup and a modal on the same click creates redundant UI.
   function placePins(parks) {
     if (!map) return;
     clearMarkers();
 
     for (const park of parks) {
-      const marker = L.marker([park.lat, park.lon])
-        .bindPopup(park.name)
-        .addTo(map);
-
+      const marker = L.marker([park.lat, park.lon]).addTo(map);
       marker.on('click', () => selectPark(park));
       markers.push(marker);
     }
@@ -89,6 +88,12 @@
     // block) so that onDestroy can cancel it if the component is destroyed
     // mid-press. The hoisted let binding makes the assignment here safe.
     map.on('touchstart', (event) => {
+      // Ignore multi-finger gestures (pinch-to-zoom) — only single-touch
+      // should trigger the long-press. event.originalEvent is the native
+      // TouchEvent; its touches list includes all current contact points.
+      // Optional chaining guards against test environments where the mock
+      // event omits originalEvent entirely.
+      if ((event.originalEvent?.touches?.length ?? 0) > 1) return;
       const { lat, lng } = event.latlng;
       longPressTimer = setTimeout(() => {
         setOrigin(lat, lng, 'Map location');

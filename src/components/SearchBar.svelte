@@ -47,7 +47,9 @@
   }
 
   function handleKeyDown(event) {
-    if (event.key === 'Enter') handleSearch();
+    // Guard matches the button's disabled condition so rapid Enter-mashing
+    // doesn't queue multiple geocode calls while one is already in flight.
+    if (event.key === 'Enter' && !geocoding && !$searchStore.loading) handleSearch();
   }
 
   function handleGps() {

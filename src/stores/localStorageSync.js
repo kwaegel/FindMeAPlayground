@@ -83,8 +83,17 @@ export async function init() {
 
     // Restoring the origin triggers a full Overpass search — do this last so
     // radius and filters are already in place when the search fires.
+    // Not awaited intentionally: the search runs concurrently with app mount.
+    // The .catch() prevents an unhandled promise rejection if the Overpass
+    // fetch fails — the error is already written to store.error by runSearch.
     if (stored.origin?.lat != null && stored.origin?.lon != null) {
-      setOrigin(stored.origin.lat, stored.origin.lon, stored.origin.displayName ?? '');
+      // Promise.resolve() wraps the return value so .catch() works regardless
+      // of whether setOrigin returns a Promise or undefined (e.g. in test mocks).
+      Promise.resolve(
+        setOrigin(stored.origin.lat, stored.origin.lon, stored.origin.displayName ?? '')
+      ).catch((err) => {
+        console.warn('[localStorageSync] Auto-search on restore failed:', err.message);
+      });
     }
   }
 
