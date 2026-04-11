@@ -30,6 +30,6 @@
     "prettier-plugin-svelte": "^3.3.2",
     "vite": "^6.0.6",
     "vitest": "^3.0.2",
-    "wrangler": "^3.101.0"
+    "wrangler": "^4.0.0"
   }
 }
