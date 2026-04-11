@@ -2,7 +2,7 @@
 
 A responsive web app that helps parents find playgrounds and parks near any US address. Enter an address (or use GPS), pick a search radius, and get a distance-sorted list with a live map — plus driving-time estimates for each result.
 
-Built with Svelte + Vite, hosted on Cloudflare Pages, and powered entirely by the OpenStreetMap ecosystem (no paid map tiles).
+Built with Svelte + Vite, hosted on Cloudflare Workers, and powered entirely by the OpenStreetMap ecosystem (no paid map tiles).
 
 ---
 
@@ -23,9 +23,9 @@ Open <http://localhost:5173> in your browser.
 
 Hot-reload is active — edits to `.svelte` files and JavaScript modules reflect instantly without a page refresh.
 
-### Option B — Wrangler Pages dev (full stack, travel times included)
+### Option B — Wrangler dev (full stack, travel times included)
 
-This simulates the full Cloudflare Pages + Workers environment locally, so the `/api/travel-times` proxy runs and driving times appear in results.
+This simulates the full Cloudflare Workers environment locally, so the `/api/travel-times` proxy runs and driving times appear in results.
 
 **Prerequisites:**
 
@@ -57,10 +57,10 @@ This simulates the full Cloudflare Pages + Workers environment locally, so the `
 4. Start the Wrangler dev server:
    
    ```bash
-   npx wrangler pages dev dist --compatibility-date=2024-01-01
+   npx wrangler dev
    ```
 
-5. Open the URL printed by Wrangler (typically <http://localhost:8788>).
+5. Open the URL printed by Wrangler (typically <http://localhost:8787>).
 
 > **Tip:** Wrangler reads `.dev.vars` automatically as environment secrets. The `ORS_API_KEY` value is injected into the Worker function the same way it would be in production.
 
@@ -106,9 +106,10 @@ src/
   utils/         Pure utilities: haversine.js, formatters.js
   App.svelte     Root layout component
   main.js        Entry point
+  worker.js      Cloudflare Worker entry point (routes API + serves assets)
 functions/
   api/
-    travel-times.js   Cloudflare Pages Function — ORS proxy
+    travel-times.js   ORS proxy handler (imported by src/worker.js)
 tests/           Mirrors src/ structure
 ```
 
