@@ -75,11 +75,17 @@ describe('ParkDetailModal', () => {
 
   it('shows a Google Maps directions link that opens in a new tab', () => {
     mockState = { selectedPark: PARK, travelTimes: new Map() };
-    render(ParkDetailModal);
-    const link = screen.getByRole('link', { name: /directions|google maps/i });
+    const { container } = render(ParkDetailModal);
+    // Use a direct DOM query rather than getByRole({ name: ... }) — the accessible
+    // name computation traverses the Lucide SVG child in jsdom and can hang
+    // intermittently. The href selector is equally unambiguous.
+    const link = container.querySelector('a[href*="google.com/maps"]');
+    expect(link).not.toBeNull();
     expect(link.href).toContain('google.com/maps');
     expect(link.href).toContain(`${PARK.lat},${PARK.lon}`);
     expect(link.target).toBe('_blank');
+    // Verify the accessible label so the aria-label is still tested.
+    expect(link.getAttribute('aria-label')).toMatch(/directions/i);
   });
 
   it('closes when the close button is clicked', async () => {
