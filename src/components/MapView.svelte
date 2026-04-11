@@ -12,6 +12,34 @@
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
 
+  // Leaflet's default marker images live in node_modules and aren't picked up
+  // by Vite's CSS bundling, so they 404 in production builds (Wrangler/Workers).
+  // Import them as Vite asset URLs so the bundler emits hashed copies into
+  // dist/assets/ and Leaflet resolves them correctly at runtime.
+  // See https://github.com/Leaflet/Leaflet/issues/4968
+  import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+  import markerIcon from 'leaflet/dist/images/marker-icon.png';
+  import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+  // Guard required because vi.mock('leaflet') in tests omits L.Icon entirely.
+  // In a real browser L.Icon.Default is always defined.
+  if (L.Icon?.Default) {
+    // Icon.Default._getIconUrl prepends a detected `imagePath` to iconUrl.
+    // In Vite dev mode the CSS path-detection succeeds (Vite rewrites url()
+    // references in leaflet.css to absolute /@fs/... paths), so imagePath gets
+    // set to the node_modules images directory and then gets prepended to our
+    // already-absolute import URLs, producing a broken double-path. Deleting
+    // the override lets calls fall through to the base Icon._getIconUrl which
+    // simply returns options.iconUrl without any prepending.
+    delete L.Icon.Default.prototype._getIconUrl;
+
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: markerIcon2x,
+      iconUrl: markerIcon,
+      shadowUrl: markerShadow,
+    });
+  }
+
   const MILES_TO_METERS = 1609.34;
 
   // OSM tile layer URL and attribution (required by OSM usage policy).
