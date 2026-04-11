@@ -59,6 +59,17 @@ export function _resetStore() {
   searchStore.set(defaultState());
 }
 
+/**
+ * Return the current search generation ID. Used by the travel-time service to
+ * detect whether a batch that finished in-flight belongs to the current search
+ * or a superseded one.
+ *
+ * @returns {number}
+ */
+export function getSearchId() {
+  return currentSearchId;
+}
+
 // --- Internal helpers ---
 
 /**
@@ -178,9 +189,18 @@ export function clearSelectedPark() {
  * Merge asynchronously-arrived travel times into the store.
  * Entries from the incoming map are merged into the existing travelTimes map.
  *
+ * Accepts an optional `expectedSearchId` so callers (travelTime.js batches) can
+ * discard results that belong to a superseded search. Without this guard, an
+ * in-flight batch that outlives a new search would pollute the new search's map
+ * with stale park IDs from the old location.
+ *
  * @param {Map<string, number>} timesMap - Map of parkId → seconds.
+ * @param {number} [expectedSearchId] - If provided, skip the merge if the search
+ *   has moved on since this batch was dispatched.
  */
-export function mergeTravelTimes(timesMap) {
+export function mergeTravelTimes(timesMap, expectedSearchId) {
+  // Discard stale batch: a newer search started while this one was in flight.
+  if (expectedSearchId !== undefined && expectedSearchId !== currentSearchId) return;
   searchStore.update((s) => {
     const merged = new Map(s.travelTimes);
     for (const [id, seconds] of timesMap) {

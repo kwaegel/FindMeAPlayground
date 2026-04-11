@@ -65,14 +65,16 @@ export async function onRequestPost({ request, env }) {
 
   const { origin, destinations } = body ?? {};
 
-  if (!origin) {
+  // Use == null (covers both null and undefined) rather than !value which would
+  // misreport a malformed value like 0 or "" as "missing field".
+  if (origin == null) {
     return new Response(JSON.stringify({ error: 'Missing required field: origin' }), {
       status: 400,
       headers: headers(allowedOrigin),
     });
   }
 
-  if (!destinations) {
+  if (destinations == null) {
     return new Response(JSON.stringify({ error: 'Missing required field: destinations' }), {
       status: 400,
       headers: headers(allowedOrigin),

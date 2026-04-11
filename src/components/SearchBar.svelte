@@ -6,24 +6,26 @@
   import { searchStore, setOrigin } from '../stores/searchStore.js';
   import { geocode } from '../services/nominatim.js';
 
-  let inputValue = $state('');
-  let gpsError = $state('');
+  // Plain `let` variables — legacy Svelte 4 mode, consistent with App.svelte
+  // and the rest of the component tree ($: reactive blocks, not $state/$effect).
+  let inputValue = '';
+  let gpsError = '';
   // True while the geocode() call is in flight (before the Overpass search
   // starts). The store's loading flag only becomes true once Overpass begins,
   // so without this there is a 1-2s window where the user sees no feedback.
-  let geocoding = $state(false);
+  let geocoding = false;
 
   // Track the last origin we synced to the input so we can detect real changes
   // (not just any store update). The `inputValue === ''` guard was too narrow —
   // it prevented sync after "search from here" fired while the user had text.
-  let lastSyncedDisplayName = $state('');
-  $effect(() => {
+  let lastSyncedDisplayName = '';
+  $: {
     const displayName = $searchStore.origin?.displayName;
     if (displayName && displayName !== lastSyncedDisplayName) {
       inputValue = displayName;
       lastSyncedDisplayName = displayName;
     }
-  });
+  }
 
   async function handleSearch() {
     const query = inputValue.trim();

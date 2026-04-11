@@ -4,6 +4,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../src/stores/searchStore.js', () => ({
   mergeTravelTimes: vi.fn(),
+  // getTravelTimes captures this at call time and passes it through to
+  // mergeTravelTimes so stale batches can be discarded. Return a fixed value
+  // so assertions can verify the ID is forwarded correctly.
+  getSearchId: vi.fn(() => 1),
 }));
 
 import { getTravelTimes } from '../../src/services/travelTime.js';
@@ -56,8 +60,10 @@ describe('getTravelTimes()', () => {
 
     await getTravelTimes(ORIGIN, parks);
 
+    // Second argument is the search-generation ID forwarded from getSearchId().
     expect(mergeTravelTimes).toHaveBeenCalledWith(
-      new Map([['way/1', 300], ['way/2', 600]])
+      new Map([['way/1', 300], ['way/2', 600]]),
+      1
     );
   });
 

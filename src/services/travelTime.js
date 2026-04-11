@@ -5,7 +5,7 @@
 // Travel times are a UX enhancement — failures are silently swallowed so
 // the UI always displays results even if ORS is unavailable.
 
-import { mergeTravelTimes } from '../stores/searchStore.js';
+import { mergeTravelTimes, getSearchId } from '../stores/searchStore.js';
 
 const PROXY_URL = '/api/travel-times';
 
@@ -23,6 +23,12 @@ const BATCH_SIZE = 50;
 export async function getTravelTimes(origin, parks) {
   if (parks.length === 0) return;
 
+  // Capture the search generation ID before any awaits. If the user triggers
+  // a new search while batches are in-flight, the batches will see a stale ID
+  // and skip the mergeTravelTimes call, preventing old results from polluting
+  // the new search's travel-time map.
+  const searchId = getSearchId();
+
   // Split parks into batches to stay within the ORS 50-destination limit.
   // All batches are fired in parallel so results arrive as quickly as possible.
   // fetchBatch is individually error-tolerant, so one batch failure does not
@@ -31,7 +37,7 @@ export async function getTravelTimes(origin, parks) {
   for (let i = 0; i < parks.length; i += BATCH_SIZE) {
     batches.push(parks.slice(i, i + BATCH_SIZE));
   }
-  await Promise.all(batches.map((batch) => fetchBatch(origin, batch)));
+  await Promise.all(batches.map((batch) => fetchBatch(origin, batch, searchId)));
 }
 
 /**
@@ -39,8 +45,9 @@ export async function getTravelTimes(origin, parks) {
  *
  * @param {{ lat: number, lon: number }} origin
  * @param {ParkResult[]} batch
+ * @param {number} searchId - Generation ID captured when the search started.
  */
-async function fetchBatch(origin, batch) {
+async function fetchBatch(origin, batch, searchId) {
   // ORS uses [longitude, latitude] order (GeoJSON convention).
   const body = {
     origin: [origin.lon, origin.lat],
@@ -68,7 +75,7 @@ async function fetchBatch(origin, batch) {
     }
 
     if (timesMap.size > 0) {
-      mergeTravelTimes(timesMap);
+      mergeTravelTimes(timesMap, searchId);
     }
   } catch {
     // Travel time failures are non-fatal — UI handles null travel times gracefully.

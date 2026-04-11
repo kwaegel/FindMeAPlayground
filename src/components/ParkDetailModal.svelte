@@ -22,8 +22,14 @@
   function trapFocus(event) {
     if (event.key !== 'Tab') return;
 
+    // Canonical focusable-elements selector — covers links, buttons, form
+    // fields, and any element with an explicit positive tabindex. Future modal
+    // content (inputs, selects) will be trapped correctly without changing this.
     const focusable = Array.from(
-      event.currentTarget.querySelectorAll('a[href], button:not([disabled])')
+      event.currentTarget.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), ' +
+          'textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )
     );
     if (focusable.length === 0) return;
 

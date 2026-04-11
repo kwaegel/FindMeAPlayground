@@ -51,8 +51,9 @@ function parseElement(element, originLat, originLon) {
   const lon = element.center ? element.center.lon : element.lon;
 
   // Guard: skip elements where Overpass didn't provide resolvable coordinates.
-  // This can happen for relation elements that lack a center in the response.
-  if (lat == null || lon == null) return null;
+  // isFinite rejects null, undefined, NaN, Infinity, and non-numeric strings —
+  // a tighter check than == null which only catches null/undefined.
+  if (!isFinite(lat) || !isFinite(lon)) return null;
 
   return {
     id: `${type}/${id}`,

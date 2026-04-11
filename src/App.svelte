@@ -33,7 +33,9 @@
   let prevResults = null;
   let prevVisibleCount = 0;
   $: {
-    const { origin, allResults, visibleCount } = $searchStore;
+    // Single snapshot of the store so the block reads a consistent state.
+    const state = $searchStore;
+    const { origin, allResults, visibleCount } = state;
     if (origin && allResults.length > 0) {
       if (allResults !== prevResults) {
         // New search — fetch travel times for the initially-visible slice only.
@@ -41,11 +43,11 @@
         // never scroll to. The show-more branch below handles subsequent batches.
         prevResults = allResults;
         prevVisibleCount = visibleCount;
-        const initialBatch = getFilteredResults($searchStore).slice(0, visibleCount);
+        const initialBatch = getFilteredResults(state).slice(0, visibleCount);
         if (initialBatch.length > 0) getTravelTimes(origin, initialBatch);
       } else if (visibleCount > prevVisibleCount) {
         // Show more — fetch only the newly-exposed slice.
-        const filtered = getFilteredResults($searchStore);
+        const filtered = getFilteredResults(state);
         const newBatch = filtered.slice(prevVisibleCount, visibleCount);
         prevVisibleCount = visibleCount;
         if (newBatch.length > 0) {
@@ -60,6 +62,9 @@
         // the visible set after a filter toggle will show no travel time until
         // the next show-more or new search. This avoids burning ORS quota on
         // filter changes, which can fire rapidly as the user toggles amenities.
+        // Note: clearing and re-enabling filters also does not re-fetch — parks
+        // that re-enter the visible set after a filter removal will have no time
+        // until the next "Show more" or new search.
         prevVisibleCount = visibleCount;
       }
     }
