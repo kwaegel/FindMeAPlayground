@@ -28,28 +28,34 @@ Hot-reload is active — edits to `.svelte` files and JavaScript modules reflect
 This simulates the full Cloudflare Pages + Workers environment locally, so the `/api/travel-times` proxy runs and driving times appear in results.
 
 **Prerequisites:**
+
 - Node.js 18 or later
 - An [OpenRouteService API key](https://openrouteservice.org/dev/#/signup) (free tier — 2,500 requests/day)
 
 **Steps:**
 
 1. Install dependencies:
+   
    ```bash
    npm install
    ```
 
 2. Build the frontend:
+   
    ```bash
    npm run build
    ```
 
 3. Create a `.dev.vars` file in the project root with your ORS key:
+   
    ```
    ORS_API_KEY=your_ors_api_key_here
    ```
+   
    This file is gitignored. Never commit it.
 
 4. Start the Wrangler dev server:
+   
    ```bash
    npx wrangler pages dev dist --compatibility-date=2024-01-01
    ```
@@ -80,12 +86,12 @@ Runs Vitest in watch mode, re-running affected tests on file save.
 
 ## Other commands
 
-| Command | What it does |
-|---|---|
-| `npm run build` | Production build → `dist/` |
+| Command           | What it does                                          |
+| ----------------- | ----------------------------------------------------- |
+| `npm run build`   | Production build → `dist/`                            |
 | `npm run preview` | Serve the `dist/` build locally (no Worker functions) |
-| `npm run lint` | ESLint check |
-| `npm run format` | Prettier format in place |
+| `npm run lint`    | ESLint check                                          |
+| `npm run format`  | Prettier format in place                              |
 
 ---
 
@@ -110,11 +116,11 @@ tests/           Mirrors src/ structure
 
 ## APIs used
 
-| Service | Purpose | Key required? |
-|---|---|---|
-| [Nominatim](https://nominatim.openstreetmap.org/) | Geocoding (address → coordinates) | No |
-| [Overpass API](https://overpass-api.de/) | Park/playground data from OpenStreetMap | No |
-| [OpenRouteService](https://openrouteservice.org/) | Driving-time matrix | Yes (via Worker secret) |
-| [OpenStreetMap tiles](https://www.openstreetmap.org/) | Map background | No |
+| Service                                               | Purpose                                 | Key required?           |
+| ----------------------------------------------------- | --------------------------------------- | ----------------------- |
+| [Nominatim](https://nominatim.openstreetmap.org/)     | Geocoding (address → coordinates)       | No                      |
+| [Overpass API](https://overpass-api.de/)              | Park/playground data from OpenStreetMap | No                      |
+| [OpenRouteService](https://openrouteservice.org/)     | Driving-time matrix                     | Yes (via Worker secret) |
+| [OpenStreetMap tiles](https://www.openstreetmap.org/) | Map background                          | No                      |
 
 The ORS key is kept server-side (Cloudflare Worker secret `ORS_API_KEY`). It is never exposed to the browser.
