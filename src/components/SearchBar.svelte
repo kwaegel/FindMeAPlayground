@@ -90,7 +90,6 @@
     />
     <button onclick={handleSearch} class="btn-search" aria-label="Search" disabled={geocoding || $searchStore.loading}>
       <Search size={18} aria-hidden="true" />
-      Search
     </button>
     <button onclick={handleGps} class="btn-gps" aria-label="Use my GPS location" disabled={geocoding || $searchStore.loading}>
       <Locate size={18} aria-hidden="true" />
@@ -138,15 +137,13 @@
   .btn-search {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
     background: #2563eb;
     color: #fff;
     border: none;
     border-radius: 6px;
-    padding: 0.375rem 0.75rem;
-    font-size: 0.875rem;
+    padding: 0.375rem;
     cursor: pointer;
-    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .btn-search:hover:not(:disabled) {
@@ -168,6 +165,7 @@
     padding: 0.375rem;
     cursor: pointer;
     color: #6b7280;
+    flex-shrink: 0;
   }
 
   .btn-gps:hover {

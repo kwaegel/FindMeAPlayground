@@ -72,6 +72,7 @@ playwright-cli close
 **Notes:**
 - The travel-times 404 error in console is expected when running `npm run dev` (no Worker). Use `wrangler dev` to test travel times end-to-end.
 - Use `playwright-cli screenshot` to capture the visual state when diagnosing layout issues.
+- **Vite HMR does not reliably detect file changes in WSL2** (inotify limitation). If `playwright-cli` shows stale output after editing a source file, restart the Vite server (`pkill -f vite`, then `nohup npx vite --port 5173 > /tmp/claude/vite.log 2>&1 &` with `dangerouslyDisableSandbox: true`) and reload the browser.
 
 ## Architecture Decisions
 
