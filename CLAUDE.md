@@ -52,6 +52,10 @@ For GUI changes that can't be verified by unit tests (layout, map interactions, 
 
 **Default test address:** 500 Castro St, Mountain View, CA 94041
 
+**Standard resolutions:**
+- Desktop: `playwright-cli resize 1920 1080`
+- Mobile (Pixel 9 Pro): `playwright-cli resize 1080 2424`
+
 **Typical flow** (element refs are assigned at runtime — get them from `playwright-cli snapshot`):
 ```bash
 playwright-cli open http://localhost:5173/
