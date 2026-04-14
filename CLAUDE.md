@@ -44,6 +44,36 @@ tests/               # Mirrors src/ structure
 - `npm test` — Run Vitest
 - `wrangler dev` — Local dev with Worker + assets (simulates Cloudflare)
 
+## Browser Testing with playwright-cli
+
+For GUI changes that can't be verified by unit tests (layout, map interactions, modal behavior, responsive design), use `playwright-cli` to test against the running dev server.
+
+**Dev server:** Start with `npx vite --port 5173` — no sandbox bypass needed; Vite binds to localhost within the sandbox and is reachable from outside it. All `playwright-cli` commands require `dangerouslyDisableSandbox: true` because playwright-cli writes to `/home/ky/.cache/ms-playwright/daemon/`, which is outside the sandbox's allowed write paths. Alternatively, add `~/.cache/ms-playwright/daemon/` to the `additionalDirectories` write allowlist in local or user-level settings (via `/update-config`), which lets playwright-cli run without disabling the sandbox at all.
+
+**Default test address:** 500 Castro St, Mountain View, CA 94041
+
+**Standard resolutions:**
+- Desktop: `playwright-cli resize 1920 1080`
+- Mobile (Pixel 9 Pro): `playwright-cli resize 1080 2424`
+
+**Typical flow** (element refs are assigned at runtime — get them from `playwright-cli snapshot`):
+```bash
+playwright-cli open http://localhost:5173/
+playwright-cli snapshot           # inspect page structure and get element refs
+playwright-cli fill <address-ref> "500 Castro St, Mountain View, CA 94041"
+playwright-cli click "getByRole('button', { name: 'Search' })"
+playwright-cli snapshot           # verify results loaded
+playwright-cli click <park-ref>   # open detail modal
+playwright-cli snapshot           # verify modal content
+playwright-cli console            # check for JS errors before closing
+playwright-cli close
+```
+
+**Notes:**
+- The travel-times 404 error in console is expected when running `npm run dev` (no Worker). Use `wrangler dev` to test travel times end-to-end.
+- Use `playwright-cli screenshot` to capture the visual state when diagnosing layout issues.
+- **Vite HMR does not reliably detect file changes in WSL2** (inotify limitation). If `playwright-cli` shows stale output after editing a source file, restart the Vite server (`pkill -f vite`, then `nohup npx vite --port 5173 > /tmp/claude/vite.log 2>&1 &` with `dangerouslyDisableSandbox: true`) and reload the browser.
+
 ## Architecture Decisions
 
 - **No SvelteKit** — plain Svelte + Vite. No SSR, no file-based routing. Park detail is a modal, not a URL route.
