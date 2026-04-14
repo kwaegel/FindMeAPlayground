@@ -166,6 +166,10 @@
     cursor: pointer;
     color: #6b7280;
     flex-shrink: 0;
+    /* Prevent the button from sitting flush against the input-row's rounded
+       corner, which causes the right border to appear clipped on high-DPR
+       mobile screens. The input (flex:1) absorbs this margin. */
+    margin-right: 2px;
   }
 
   .btn-gps:hover {
